@@ -4,7 +4,6 @@ import sys
 from subs import read_ass_file, convert_hiragana
 from merge import merge_files
 
-
 # parser = PykakasiParser()
 parser = FugashiParser()
 def convert_and_print(text):
