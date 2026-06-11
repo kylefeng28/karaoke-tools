@@ -8,7 +8,6 @@ dependencies = [
     "fugashi[unidic-lite]>=1.5.2",
     "ipadic>=1.0.0",
     "pykakasi>=2.3.0",
-    "pyonfx>=0.11.0",
     "pyqt6>=6.11.0",
     "pysubs2>=1.8.1",
     "unidic-lite>=1.0.8",
