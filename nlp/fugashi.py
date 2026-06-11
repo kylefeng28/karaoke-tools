@@ -69,6 +69,21 @@ def split_okurigana(text, hiragana):
                         break
 
 
+def needs_space_before(word):
+    # Only used for romaji since Japanese doesn't use spaces.
+    # We need to determine if a two segmentized "words" should be joined or separated by spaces
+    # e.g. 食べない will be segmentized as [(食べ, たべ), (ない)], but they should be joined as "tabenai" and not "tabe nai"
+    pos1 = word.feature.pos1
+    pos2 = word.feature.pos2
+    if pos1 == '助動詞':                       # ない、ます、た、だ…
+        return False
+    if pos2 in ('非自立', '接尾'):             # dependent verbs/adjectives, suffixes
+        return False
+    if pos1 == '助詞' and pos2 == '接続助詞':  # て、で、ながら…
+        return False
+    return True
+
+
 def split_furigana(text):
     ret = []
     for word in tagger(text):
@@ -76,32 +91,42 @@ def split_furigana(text):
         if not origin:
             continue
 
+        space_before = needs_space_before(word)
+
         if any(is_kanji(ch) for ch in origin):
             kana = word.feature.kana
             if kana:
                 hiragana = jaconv.kata2hira(kana)
+
+                first = True
                 for pair in split_okurigana(origin, hiragana):
-                    ret += [pair]
+                    ret += [(pair, first and space_before)]
+                    first = False
             else:
-                ret += [(origin,)]
+                ret += [((origin,), space_before)]
         else:
-            ret += [(origin,)]
+            ret += [((origin,), space_before)]
+
     return ret
 
 
 def convert(text):
     furigana_result = ''
-    romaji_result = ''
+    hiragana_result = ''
 
-    for pair in split_furigana(text):
+    for pair, space_before in split_furigana(text):
         if len(pair) == 2:
             kanji, hira = pair
-            furigana_result += f'{kanji}{hira}'
+            furigana_result += f"{kanji}({hira})"
         else:
             hira = pair[0]
             furigana_result += hira
 
-        romaji = jaconv.kata2alphabet(hira)
-        romaji_result += romaji + ' '
+        if space_before:
+            hiragana_result += ' ' + hira
+        else:
+            hiragana_result += hira
+
+    romaji_result = jaconv.kata2alphabet(hiragana_result)
 
     return [furigana_result, romaji_result]
