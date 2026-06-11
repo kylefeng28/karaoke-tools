@@ -1,32 +1,13 @@
-import pykakasi
+from nlp import convert, set_backend
 import sys
 
-kks = pykakasi.kakasi()
+# set_backend('kakasi')
+set_backend('fugashi')
 
-def convert_kakasi(text):
-    result = kks.convert(text)
-
-    furigana_result = ''
-    romaji_result = ''
-
-    for item in result:
-        orig = item['orig']
-        hiragana = item['hira']
-        katakana = item['kana']
-        romaji = item['hepburn']
-
-        if orig.isspace():
-            furigana_result += orig
-            romaji_result += orig
-        elif orig == hiragana or orig == katakana:
-            furigana_result += orig
-            romaji_result += romaji + ' '
-        else:
-            furigana_result += f"{orig}[{hiragana}]"
-            romaji_result += romaji + ' '
-
-    print(furigana_result)
-    print(romaji_result)
+def convert_and_print(text):
+    converted = convert(text)
+    print(converted[0])
+    print(converted[1])
 
 def main():
     if len(sys.argv) > 1:
@@ -35,7 +16,7 @@ def main():
         with open(input_file, 'r') as f:
             for line in f:
                 line = line.strip()
-                convert_kakasi(line)
+                convert_and_print(line)
 
     else:
         # REPL mode
@@ -44,7 +25,7 @@ def main():
         while True:
             try:
                 text = input('> ')
-                convert_kakasi(text)
+                convert_and_print(text)
             except EOFError | KeyboardInterrupt:
                 break
 
