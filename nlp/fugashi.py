@@ -22,51 +22,41 @@ def is_hiragana(ch):
     return 'HIRAGANA' in unicodedata.name(ch)
 
 
-def split_okurigana_reverse(text, hiragana):
-    yield (text[0],)
-    yield from split_okurigana(text[1:], hiragana[1:])
-
-
 def split_okurigana(text, hiragana):
+    """ 送り仮名 processing
+      tested:
+         * 出会(であ)う
+         * 明(あか)るい
+         * 駆(か)け抜(ぬ)け
+         * (か)け抜(ぬ)け
+         * お茶(おちゃ)
+         * ご無沙汰(ごぶさた)
+         * お子(こ)さん
+         * 進(すす)め
+         * 戦(たた)い
+         * 温(あたた)かい
+    """
+    if not text:
+        return
+    # Hiragana prefix (e.g. お茶、ご無沙汰): yield the leading hiragana as-is
     if is_hiragana(text[0]):
-        yield from split_okurigana_reverse(text, hiragana)
-    if all(is_kanji(_) for _ in text):
+        yield (text[0],)
+        yield from split_okurigana(text[1:], hiragana[1:])
+        return
+    # Pure kanji block: the whole reading belongs to the whole block
+    if all(is_kanji(ch) for ch in text):
         yield text, hiragana
         return
-    text = list(text)
-    ret = (text[0], [hiragana[0]])
-    for hira in hiragana[1:]:
-        for char in text:
-            if hira == char:
-                text.pop(0)
-                if ret[0]:
-                    if is_kanji(ret[0]):
-                        yield ret[0], ''.join(ret[1][:-1])
-                        yield (ret[1][-1],)
-                    else:
-                        yield (ret[0],)
-                else:
-                    yield (hira,)
-                ret = ('', [])
-                if text and text[0] == hira:
-                    text.pop(0)
-                break
-            else:
-                if is_kanji(char):
-                    if ret[1] and hira == ret[1][-1]:
-                        text.pop(0)
-                        yield ret[0], ''.join(ret[1][:-1])
-                        yield char, hira
-                        ret = ('', [])
-                        text.pop(0)
-                    else:
-                        ret = (char, ret[1]+[hira])
-                else:
-                    # char is also hiragana
-                    if hira != char:
-                        break
-                    else:
-                        break
+    # Mixed kanji+okurigana: find the first hiragana anchor in text.
+    # Each kanji takes >=1 mora, so the anchor can't appear before index i in hiragana
+    for i, ch in enumerate(text):
+        if not is_kanji(ch):
+            j = hiragana.index(ch, i)
+            if i > 0:
+                yield text[:i], hiragana[:j]
+            yield (ch,)
+            yield from split_okurigana(text[i + 1:], hiragana[j + 1:])
+            return
 
 
 def needs_space_before(word):
