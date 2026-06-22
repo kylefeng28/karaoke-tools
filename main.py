@@ -2,6 +2,7 @@ from nlp import FugashiParser, PykakasiParser
 import sys
 
 from subs import read_ass_file
+from merge import merge_files
 
 # parser = PykakasiParser()
 parser = FugashiParser()
@@ -16,10 +17,14 @@ def read_txt_file(input_file):
             convert_and_print(line)
 
 def main():
-    if len(sys.argv) > 1:
-        # Read file
-        input_file = sys.argv[1]
+    if len(sys.argv) == 3:
+        # Merge mode: romaji .ass + JP text → k-timed karaoke with kanji ruby
+        ass_file, jp_file = sys.argv[1], sys.argv[2]
+        merge_files(ass_file, jp_file)
 
+    elif len(sys.argv) == 2:
+        # Single file mode
+        input_file = sys.argv[1]
         if input_file.endswith(".ass"):
             read_ass_file(input_file)
         else:

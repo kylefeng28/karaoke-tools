@@ -3,7 +3,8 @@ import pysubs2
 from dataclasses import dataclass, field
 from utils import convert_to_hiragana
 
-K_TOKEN_RE = re.compile(r'\{\\k(\d+)\}([^{]*)')
+# Matches both \k and \kf timing tags (with optional space before the number); group 1 = timing, group 2 = syllable text
+K_TOKEN_RE = re.compile(r'\{\\kf? ?(\d+)\}([^{]*)')
 
 
 # Represents a syllable marked with \k tags
@@ -26,7 +27,11 @@ class TimedWord:
         self.syllables.append(syllable)
 
     def __str__(self):
+        if not self.syllables:
+            return self.text
         syls = [s.text for s in self.syllables]
+        if ''.join(syls) == self.text:
+            return self.text
         return self.text + ' {' + '-'.join(syls) + '}'
 
     def detailed_str(self):
@@ -37,7 +42,6 @@ class TimedWord:
 
     def convert_hiragana(self):
         is_whole_word = len(self.syllables) == 1
-        is_whole_word = False
         converted = convert_to_hiragana(self.text, is_whole_word)
         self.text = converted
 
@@ -100,6 +104,6 @@ def read_ass_file(input_file):
         timed_words = parse_k_timing(line.text)
         for word in timed_words:
             word.convert_hiragana()
-            print(word)
+            print(word, end='\t')
 
         print()
