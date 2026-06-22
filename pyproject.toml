@@ -5,7 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "fugashi[unidic-lite]>=1.5.2",
+    "fugashi[unidic,unidic-lite,unidict]>=1.5.2",
     "ipadic>=1.0.0",
     "pykakasi>=2.3.0",
     "pyqt6>=6.11.0",
