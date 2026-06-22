@@ -1,4 +1,5 @@
 import unicodedata
+import jaconv
 
 
 def is_kanji(ch):
@@ -44,3 +45,16 @@ def split_okurigana(text, hiragana):
             yield (ch,)
             yield from split_okurigana(text[i + 1:], hiragana[j + 1:])
             return
+
+def convert_to_hiragana(s: str, is_whole_word):
+    # Convention is that uppercase words are English or non-Japanese loanwords
+    if s.isupper():
+        return s
+
+    # "wa" and "o" should be は and を instead of わ and お when they are standalone particles
+    if s == "wa" and is_whole_word:
+        return "は"
+    elif s == "o" and is_whole_word:
+        return "お"
+
+    return jaconv.alphabet2kana(s)

@@ -1,57 +1,105 @@
-import pyonfx
+import re
+import pysubs2
 from dataclasses import dataclass, field
+from utils import convert_to_hiragana
+
+K_TOKEN_RE = re.compile(r'\{\\k(\d+)\}([^{]*)')
+
+
+# Represents a syllable marked with \k tags
+@dataclass
+class TimedSyllable:
+    text: str
+    timing: int = None
+
+    def __str__(self):
+        return f"{{{self.text}, {self.timing}}}"
+
+
+# Represents a word with its k-timed syllables
+@dataclass
+class TimedWord:
+    text: str
+    syllables: list[TimedSyllable] = field(default_factory=list)
+
+    def add_syllable(self, syllable):
+        self.syllables.append(syllable)
+
+    def __str__(self):
+        syls = [s.text for s in self.syllables]
+        return self.text + ' {' + '-'.join(syls) + '}'
+
+    def detailed_str(self):
+        syls = [s.text for s in self.syllables]
+        timings = [str(s.timing) for s in self.syllables]
+        timings_str = ' (' + ','.join(timings) + ')'
+        return '-'.join(syls) + timings_str
+
+    def convert_hiragana(self):
+        is_whole_word = len(self.syllables) == 1
+        is_whole_word = False
+        converted = convert_to_hiragana(self.text, is_whole_word)
+        self.text = converted
+
+        for syl in self.syllables:
+            converted = convert_to_hiragana(syl.text, is_whole_word)
+            syl.text = converted
+
 
 # Represents a line of words
 @dataclass
 class Line:
-    _line: pyonfx.Line
-    words: 'KTimedWord' = field(default_factory=list)
+    words: TimedWord = field(default_factory=list)
 
-# Represents a word with its syllables marked with \k tags
-@dataclass
-class KTimedWord:
-    _word: pyonfx.Word
-    _syllables: list[pyonfx.Syllable] = field(default_factory=list)
+def parse_k_timing(line: str) -> list[TimedWord]:
+    """
+    Parse an ASS karaoke timing line into a list of TimedWord objects.
 
-    def add_syllable(self, syllable):
-        self._syllables.append(syllable)
+    Format: {\\kN}text  where N is duration in centiseconds.
+    - A trailing space on `text` marks a word boundary.
 
-    def __str__(self):
-        syls = [s.text for s in self._syllables]
-        syls = ''.join(syls)
-        return f"\\k({self._word.text}: {syls})"
+    Each TimedWord has:
+      .text       — the full word string (e.g. 'watashi')
+      .syllables  — list of TimedSyllable(text, cs) in order
+    """
+    tokens = [
+        (int(m.group(1)), m.group(2))
+        for m in K_TOKEN_RE.finditer(line)
+    ]
 
-    def convert_hiragana(self):
-        import jaconv
+    words: list[TimedWord] = []
+    current: list[TimedSyllable] = []
 
-        # Convention is that uppercase words are English or non-Japanese loanwords
-        if self._word.text.isupper():
-            return
+    for cs, raw in tokens:
+        ends_word = raw.endswith(' ')
+        text = raw.rstrip(' ')
 
-        converted = jaconv.alphabet2kana(self._word.text)
-        # print((word, converted))
-        self._word.text = converted
+        if text:
+            current.append(TimedSyllable(text.strip(), cs))
 
-        for syl in self._syllables:
-            converted = jaconv.alphabet2kana(syl.text)
-            # print((syl_text, converted))
-            syl.text = converted
+        if ends_word and current:
+            word_text = "".join(s.text for s in current)
+            words.append(TimedWord(word_text, current))
+            current = []
+
+    # Flush final word (no trailing space on last token)
+    if current:
+        word_text = "".join(s.text for s in current)
+        words.append(TimedWord(word_text, current))
+
+    return words
+
 
 def read_ass_file(input_file):
-    io = pyonfx.Ass(input_file)
+    lines = pysubs2.load(input_file)
 
-    for line in io.lines:
-        if line.effect != "karaoke":
+    for line in lines:
+        if line.text.startswith('!'):
             continue
 
-        k_timed_words = [KTimedWord(w) for w in line.words]
-
-        for syl in line.syls:
-            k_timed_words[syl.word_i].add_syllable(syl)
-
-        for word in k_timed_words:
+        timed_words = parse_k_timing(line.text)
+        for word in timed_words:
             word.convert_hiragana()
             print(word)
 
         print()
-
