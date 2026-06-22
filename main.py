@@ -1,15 +1,13 @@
-from nlp import convert, set_backend
+from nlp import FugashiParser, PykakasiParser
 import sys
 
 from subs import read_ass_file
 
-# set_backend('kakasi')
-set_backend('fugashi')
-
+# parser = PykakasiParser()
+parser = FugashiParser()
 def convert_and_print(text):
-    converted = convert(text)
-    print(converted[0])
-    print(converted[1])
+    converted = parser.convert(text)
+    print(converted)
 
 def read_txt_file(input_file):
     with open(input_file, 'r') as f:
