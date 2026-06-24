@@ -44,8 +44,10 @@ class SyllableWidget(QWidget):
 
     def set_tokens(self, tokens: list[Token], cur_tok: int, timing_active: bool):
         # clear old
-        for lbl in self._labels:
-            lbl.deleteLater()
+        while self._layout.count():
+            item = self._layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
         self._labels.clear()
 
         for idx, tok in enumerate(tokens):
