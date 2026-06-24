@@ -4,8 +4,18 @@ import re
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QStatusBar)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent
+
+from mpv import MpvIPC
+
+def _fmt_time(sec: float) -> str:
+    cs = round(max(0.0, sec) * 100)
+    h, r = divmod(cs, 360000); mn, r = divmod(r, 6000); sc, cs = divmod(r, 100)
+    return f"{h}:{mn:02}:{sc:02}.{cs:02}"
+
+def _fmt_speed(speed: float) -> str:
+    return f"{speed:02}"
 
 @dataclass
 class Token:
@@ -56,9 +66,10 @@ class SyllableWidget(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, lines: list[Line]):
+    def __init__(self, lines: list[Line], mpv: MpvIPC):
         super().__init__()
         self.lines = lines
+        self.mpv = mpv
         self.cur_line = 0
         self.cur_tok = 0
         self.syl_start: float | None = None
@@ -117,7 +128,28 @@ class MainWindow(QMainWindow):
         self.setStatusBar(self.status)
         self.status.showMessage("SPACE=end+next  N=end(gap)")
 
+        # timer for polling mpv
+        self._timer = QTimer()
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(100)
+
         self._refresh()
+
+    def _tick(self):
+        if self.mpv:
+            self.last_t = self.mpv.get_time()
+            self.lbl_time.setText(_fmt_time(self.last_t))
+            if self.playing:
+                self._auto_advance()
+
+    def _auto_advance(self):
+        t = self.last_t
+        idx = next((i for i, ln in enumerate(self.lines) if ln.start <= t < ln.end), -1)
+        if idx != -1 and idx != self.cur_line:
+            if self.syl_start is not None:
+                self._end_syl(advance=False)
+            self.cur_line = idx; self.cur_tok = 0
+            self._refresh()
 
     def _refresh(self):
         # context above
@@ -141,6 +173,28 @@ class MainWindow(QMainWindow):
 
     def keyPressEvent(self, ev: QKeyEvent):
         key = ev.key()
+
+        if self.mpv:
+            if key == Qt.Key.Key_P:
+                if self.playing: self.mpv.pause(); self.playing = False
+                else:            self.mpv.play();  self.playing = True
+                self._refresh()
+            elif key == Qt.Key.Key_BracketRight:
+                self.mpv.faster()
+                self.lbl_speed.setText(_fmt_speed(self.mpv.speed))
+                self.status.showMessage("speed + 0.5")
+                self._refresh()
+            elif key == Qt.Key.Key_BracketLeft:
+                self.mpv.slower()
+                self.lbl_speed.setText(_fmt_speed(self.mpv.speed))
+                self.status.showMessage("speed - 0.5")
+                self._refresh()
+            elif key == Qt.Key.Key_Semicolon:
+                self.mpv.seek_rel(-3.0)
+                self.status.showMessage("⟵ -3s")
+            elif key == Qt.Key.Key_Apostrophe:
+                self.mpv.seek_rel(+3.0)
+                self.status.showMessage("⟶ +3s")
 
         if key == Qt.Key.Key_Right:
             self.syl_start = None
@@ -181,6 +235,7 @@ class MainWindow(QMainWindow):
             self.cur_tok = 0
 
     def closeEvent(self, ev):
+        self.mpv.close()
         super().closeEvent(ev)
 
 
@@ -209,17 +264,23 @@ def load_lyrics(path: str) -> list[Line]:
 
 def main():
     if len(sys.argv) < 2:
-        print("usage: [lyrics_file]")
+        print("usage: <lyrics_file> [media_file]")
         sys.exit(1)
 
     lyrics_file = sys.argv[1]
+    if len(sys.argv) >= 3:
+        media_file = sys.argv[2]
+    else:
+        media_file = None
 
     lines = load_lyrics(lyrics_file)
     if not lines:
         print(f"No lines found in {lyrics_file}"); sys.exit(1)
 
+    mpv = MpvIPC(media_file) if media_file else None
+
     app = QApplication(sys.argv)
-    win = MainWindow(lines)
+    win = MainWindow(lines, mpv)
     win.show()
     sys.exit(app.exec())
 
