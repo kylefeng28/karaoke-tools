@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Literal
-
+from cjk_utils import join_tokens
 
 # Represents a syllable marked with \k tags
 @dataclass
@@ -68,9 +68,7 @@ class Line:
             return self.tokens[-1].end
 
     def preview(self):
-        # TODO: joining with empty '' only works for CJK characters, not Latin characters
-        # (i.e. English or romanized text) since they need space to separate word boundaries
-        return ''.join([token.preview() for token in self.tokens])
+        return join_tokens([token.preview() for token in self.tokens])
 
     def get_syllables(self):
         syllables = []

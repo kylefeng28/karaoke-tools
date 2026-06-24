@@ -1,4 +1,3 @@
-import re
 import unicodedata
 import jaconv
 
@@ -6,30 +5,30 @@ import jaconv
 # \u4E00-\u9FFF   # CJK Unified Ideographs (core)
 # \u3400-\u4DBF   # CJK Extension A
 # \u20000-\u2A6DF # CJK Extension B
-def is_kanji(ch):
+def is_kanji(ch) -> bool:
     return unicodedata.name(ch).startswith('CJK UNIFIED IDEOGRAPH')
 
 
 # \u3040-\u309F
-def is_hiragana(ch):
+def is_hiragana(ch) -> bool:
     return unicodedata.name(ch).startswith('HIRAGANA')
 
 
 # \u30A0-\u30FF
-def is_katakana(ch):
+def is_katakana(ch) -> bool:
     return unicodedata.name(ch).startswith('KATAKANA')
 
 
-def is_kana(ch):
+def is_kana(ch) -> bool:
     return is_hiragana(ch) or is_katakana(ch)
 
 
 # \uAC00-\uD7AF
-def is_hangul(ch):
+def is_hangul(ch) -> bool:
     return unicodedata.name(ch).startswith('HANGUL')
 
 
-def is_cjk(ch):
+def is_cjk(ch) -> bool:
     return is_kanji(ch) or is_kana(ch) or is_hangul(ch)
 
 # Small kana that combine with the preceding kana to form a single mora
@@ -40,7 +39,7 @@ def should_combine(ch, prev):
     return ch in SMALL_KANA and is_kana(prev)
 
 
-def split_tokens(text):
+def split_tokens(text: str) -> list[str]:
     """
     Split by character for CJK characters and spaces for Latin characters.
     Accounts for Japanese small kana and mixed CJK/Latin text.
@@ -86,6 +85,28 @@ def split_tokens(text):
     flush_latin()
 
     return tokens
+
+
+def join_tokens(tokens: list[str]) -> str:
+    """
+    Join tokens directly for CJK characters (no space) and with spaces separators for Latin characters.
+    For mixed text, join with no space since the
+    In other words, 
+    """
+    if not tokens:
+        return ''
+
+    prev_token, result = None, ''
+    for token in tokens:
+        if not token:
+            continue
+        if not prev_token or is_cjk(prev_token[-1]) or is_cjk(token[0]):
+            result += token
+        else:
+            result += ' ' + token
+        prev_token = token
+
+    return result
 
 def split_okurigana(text, hiragana):
     """ 送り仮名 processing

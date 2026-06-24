@@ -1,4 +1,4 @@
-from cjk_utils import is_kanji, is_kana, is_hangul, is_cjk, split_tokens
+from cjk_utils import is_kanji, is_kana, is_hangul, is_cjk, split_tokens, join_tokens
 
 
 def assert_token(s: str, kanji: bool, kana: bool, hangul: bool, cjk: bool):
@@ -36,14 +36,21 @@ def test_cjk():
     assert_latin('hello')
 
 
-def test_split_tokens():
-    assert split_tokens('我的名字')         == ['我', '的', '名', '字']
-    assert split_tokens('my name is')       == ['my', 'name', 'is']
-    assert split_tokens('これはなんですか') == ['こ', 'れ', 'は', 'な', 'ん', 'で', 'す', 'か']
-    assert split_tokens('コレハナンデスカ') == ['コ', 'レ', 'ハ', 'ナ', 'ン', 'デ', 'ス', 'カ']
-    assert split_tokens('私はJohnです')     == ['私', 'は', 'John', 'で', 'す']
+def assert_token_split_join(joined: str, split: list[str]):
+    assert split_tokens(joined) == split
+    assert join_tokens(split) == joined
+
+def test_split_and_join():
+    assert_token_split_join('我的名字', ['我', '的', '名', '字'])
+    assert_token_split_join('my name is', ['my', 'name', 'is'])
+    assert_token_split_join('これはなんですか', ['こ', 'れ', 'は', 'な', 'ん', 'で', 'す', 'か'])
+    assert_token_split_join('コレハナンデスカ', ['コ', 'レ', 'ハ', 'ナ', 'ン', 'デ', 'ス', 'カ'])
+    assert_token_split_join('私はJohnです', ['私', 'は', 'John', 'で', 'す'])
 
     # Small kana should be combined with previous mora
-    assert split_tokens('しょうねん')      == ['しょ', 'う', 'ね', 'ん']
-    assert split_tokens('しょうじょ')      == ['しょ', 'う', 'じょ']
+    assert_token_split_join('しょうねん', ['しょ', 'う', 'ね', 'ん'])
+    assert_token_split_join('しょうじょ', ['しょ', 'う', 'じょ'])
 
+    # Apostrophe should be combined with previous word
+    assert_token_split_join("I'll be goin'", ["I'll", 'be', "goin'"])
+    assert_token_split_join("Ain't that right", ["Ain't", 'that', 'right'])
