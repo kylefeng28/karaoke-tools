@@ -1,3 +1,16 @@
+"""
+Controls:
+  P      — play / pause
+  [ / ]  — slower / faster
+  ; / '  — seek -3s / +3s
+  SPACE  — end current syllable + start next
+  N      — end current syllable, leave a gap
+  /      — redo current line
+  R      — reset current line
+  S      — save .ass file
+"""
+
+import os
 import sys
 from dataclasses import dataclass, field
 import re
@@ -17,6 +30,8 @@ def _fmt_time(sec: float) -> str:
 def _fmt_speed(speed: float) -> str:
     return f"{speed:02}"
 
+CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save"
+
 @dataclass
 class Token:
     text:      str
@@ -31,6 +46,52 @@ class Line:
     end:     float
     tokens:  list[Token] = field(default_factory=list)
     preview: str = ""
+
+    def get_start(self):
+        if self.start:
+            return self.start
+        if len(self.tokens) > 0:
+            return self.tokens[0].start
+
+    def get_end(self):
+        if self.end:
+            return self.end
+        if len(self.tokens) > 0:
+            return self.tokens[-1].end
+
+_ASS_HEADER = """\
+[Script Info]
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+PlayResX: 1920
+PlayResY: 1080
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Default,Arial,80,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,3,0,2,10,10,10,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+"""
+
+def export_ass(lines: list[Line], out_path: str):
+    with open(out_path, 'w', encoding='utf-8') as f:
+        f.write(_ASS_HEADER)
+        for ln in lines:
+            text, last = '', ln.get_start()
+            for tok in ln.tokens:
+                if tok.timed:
+                    gap = tok.start - last
+                    extra = 0.0
+                    if gap > 0.005:
+                        text += '{\\kf%d}' % round(gap * 100)
+                    text += '{\\kf%d}%s' % (round((tok.end - tok.start + extra) * 100), tok.preview)
+                    last = tok.end
+                else:
+                    text += tok.preview
+            f.write(f"Dialogue: 0,{_fmt_time(ln.get_start())},{_fmt_time(ln.get_end())},"
+                    f"Default,,0,0,0,karaoke,{text}\n")
 
 class SyllableWidget(QWidget):
     """Displays one line's tokens with color-coded states."""
@@ -68,10 +129,11 @@ class SyllableWidget(QWidget):
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, lines: list[Line], mpv: MpvIPC):
+    def __init__(self, lines: list[Line], mpv: MpvIPC, out_path: str):
         super().__init__()
         self.lines = lines
         self.mpv = mpv
+        self.out_path = out_path
         self.cur_line = 0
         self.cur_tok = 0
         self.syl_start: float | None = None
@@ -128,7 +190,8 @@ class MainWindow(QMainWindow):
         # status bar
         self.status = QStatusBar()
         self.setStatusBar(self.status)
-        self.status.showMessage("SPACE=end+next  N=end(gap)")
+        self.status.showMessage(CONTROLS_DISPLAY)
+
 
         # timer for polling mpv
         self._timer = QTimer()
@@ -152,6 +215,26 @@ class MainWindow(QMainWindow):
                 self._end_syl(advance=False)
             self.cur_line = idx; self.cur_tok = 0
             self._refresh()
+
+    def _start_syl(self):
+        tok = self.lines[self.cur_line].tokens[self.cur_tok]
+        tok.start = self.last_t
+        tok.timed = False
+        self.syl_start = self.last_t
+
+    def _end_syl(self, advance: bool):
+        tok = self.lines[self.cur_line].tokens[self.cur_tok]
+        if self.syl_start is not None:
+            tok.end = self.last_t; tok.timed = True
+        self.syl_start = None
+
+        if advance:
+            ln = self.lines[self.cur_line]
+            if self.cur_tok < len(ln.tokens)-1:
+                self.cur_tok += 1
+            elif self.cur_line < len(self.lines)-1:
+                self.cur_line += 1; self.cur_tok = 0
+            self._start_syl()
 
     def _refresh(self):
         # context above
@@ -177,10 +260,17 @@ class MainWindow(QMainWindow):
         key = ev.key()
 
         if self.mpv:
+            ###############################################################
+            ### Playback / speed controls
+            ###############################################################
+            # P      — play / pause
             if key == Qt.Key.Key_P:
-                if self.playing: self.mpv.pause(); self.playing = False
-                else:            self.mpv.play();  self.playing = True
+                if self.playing:
+                    self.pause()
+                else:
+                    self.play()
                 self._refresh()
+            # [ / ]  — slower / faster
             elif key == Qt.Key.Key_BracketRight:
                 self.mpv.faster()
                 self.lbl_speed.setText(_fmt_speed(self.mpv.speed))
@@ -191,12 +281,62 @@ class MainWindow(QMainWindow):
                 self.lbl_speed.setText(_fmt_speed(self.mpv.speed))
                 self.status.showMessage("speed - 0.5")
                 self._refresh()
+            # ; / '  — seek -3s / +3s
             elif key == Qt.Key.Key_Semicolon:
                 self.mpv.seek_rel(-3.0)
                 self.status.showMessage("⟵ -3s")
             elif key == Qt.Key.Key_Apostrophe:
                 self.mpv.seek_rel(+3.0)
                 self.status.showMessage("⟶ +3s")
+
+            ###############################################################
+            ### Syllable timing
+            ###############################################################
+            # space  — end current syllable + start next syllable
+            elif key == Qt.Key.Key_Space:
+                self.last_t = self.mpv.get_time()
+                if self.syl_start is None:
+                    self._start_syl()
+                    self.status.showMessage(f"Started: {self.lines[self.cur_line].tokens[self.cur_tok].preview!r}")
+                else:
+                    tok = self.lines[self.cur_line].tokens[self.cur_tok]
+                    self._end_syl(advance=True)
+                    self.status.showMessage(f"✓ {tok.preview!r}  {tok.start:.2f}–{tok.end:.2f}s")
+                self._refresh()
+
+            # N      — end current syllable, leave a gap (don't start next syllable)
+            elif key == Qt.Key.Key_N:
+                self.last_t = self.mpv.get_time()
+                if self.syl_start is not None:
+                    tok = self.lines[self.cur_line].tokens[self.cur_tok]
+                    self._end_syl(advance=False)
+                    self.status.showMessage(f"✓ {tok.preview!r} ended, gap …")
+                ln = self.lines[self.cur_line]
+                if self.cur_tok < len(ln.tokens)-1: self.cur_tok += 1
+                elif self.cur_line < len(self.lines)-1: self.cur_line += 1; self.cur_tok = 0
+                self._refresh()
+
+            # /      — redo current line
+            elif key == Qt.Key.Key_Slash:
+                self.syl_start = None
+                if self.cur_tok > 0: self.cur_tok = 0
+                elif self.cur_line > 0: self.cur_line -= 1; self.cur_tok = 0
+                self.mpv.seek(self.lines[self.cur_line].start)
+                self.status.showMessage(f"↩ Line {self.cur_line+1}")
+                self._refresh()
+
+            # R      — reset current line
+            elif key == Qt.Key.Key_R:
+                for tk in self.lines[self.cur_line].tokens: tk.timed=False; tk.start=tk.end=0.0
+                self.cur_tok = 0; self.syl_start = None
+                self.status.showMessage("Line reset.")
+                self._refresh()
+
+            elif key == Qt.Key.Key_S:
+                self.pause()
+                export_ass(self.lines, self.out_path)
+                self.status.showMessage(f"✓ Saved → {self.out_path}")
+                self._refresh()
 
         if key == Qt.Key.Key_Right:
             self.syl_start = None
@@ -217,6 +357,14 @@ class MainWindow(QMainWindow):
 
         else:
             super().keyPressEvent(ev)
+
+    def play(self):
+        self.mpv.play()
+        self.playing = True
+
+    def pause(self):
+        self.mpv.pause()
+        self.playing = False
 
     def token_prev(self):
         if self.cur_tok > 0:
@@ -275,6 +423,8 @@ def main():
     else:
         media_file = None
 
+    out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
+
     lines = load_lyrics(lyrics_file)
     if not lines:
         print(f"No lines found in {lyrics_file}"); sys.exit(1)
@@ -282,7 +432,7 @@ def main():
     mpv = MpvIPC(media_file) if media_file else None
 
     app = QApplication(sys.argv)
-    win = MainWindow(lines, mpv)
+    win = MainWindow(lines, mpv, out_path)
     win.show()
     sys.exit(app.exec())
 
