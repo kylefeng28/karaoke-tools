@@ -43,3 +43,7 @@ def test_split_tokens():
     assert split_tokens('コレハナンデスカ') == ['コ', 'レ', 'ハ', 'ナ', 'ン', 'デ', 'ス', 'カ']
     assert split_tokens('私はJohnです')     == ['私', 'は', 'John', 'で', 'す']
 
+    # Small kana should be combined with previous mora
+    assert split_tokens('しょうねん')      == ['しょ', 'う', 'ね', 'ん']
+    assert split_tokens('しょうじょ')      == ['しょ', 'う', 'じょ']
+

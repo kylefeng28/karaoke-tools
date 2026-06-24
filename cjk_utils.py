@@ -32,28 +32,54 @@ def is_hangul(ch):
 def is_cjk(ch):
     return is_kanji(ch) or is_kana(ch) or is_hangul(ch)
 
+# Small kana that combine with the preceding kana to form a single mora
+SMALL_KANA = set('ぁぃぅぇぉゃゅょゎァィゥェォャュョヮ')
+
+
+def should_combine(ch, prev):
+    return ch in SMALL_KANA and is_kana(prev)
+
 
 def split_tokens(text):
+    """
+    Split by character for CJK characters and spaces for Latin characters.
+    Accounts for Japanese small kana and mixed CJK/Latin text.
+    This is a generic used as a generic character stream / parsing fallback;
+    for proper word segmentation, see nlp.py which uses MeCab to parse Japanese text.
+
+    For example:
+    '我的名字' -> ['我', '的', '名', '字'] # all hanzi/kanji
+    'これ' -> ['こ', 'れ'] # all kana
+    '私はJohnです' -> ['私', 'は', 'John', 'で', 'す'] # mixed kanji/kana/Latin
+    'しょうねん' -> 'しょ', 'う', 'ね, 'ん' # small kana combines with previous kana
+    """
     tokens = []
     current_latin = []
 
     def flush_latin():
+        # Flush buffered Latin text
         nonlocal tokens, current_latin
-        # Flush buffered Latin text as space-split words
         if current_latin:
-            tokens.extend(re.findall(r'\w+', ''.join(current_latin)))
+            tokens.append(''.join(current_latin))
             current_latin = []
 
     for ch in text:
         if is_cjk(ch):
-            flush_latin()
-            tokens.append(ch)
+            if tokens and should_combine(ch, tokens[-1]):
+                tokens[-1] += ch
+            else:
+                flush_latin()
+                tokens.append(ch)
         elif unicodedata.category(ch) == 'Zs' or ch.isspace():
             flush_latin()
         elif unicodedata.category(ch).startswith('P'):
-            # Punctuation: flush latin buffer, then emit punctuation as its own token
-            flush_latin()
-            tokens.append(ch)
+            # Apostrophe: consider part of current word
+            if ch == "'":
+                current_latin.append(ch)
+            else:
+                # Punctuation: flush then emit punctuation as its own token
+                flush_latin()
+                tokens.append(ch)
         else:
             current_latin.append(ch)
 
