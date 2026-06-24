@@ -21,7 +21,7 @@ from PyQt6.QtGui import QFont, QKeyEvent
 from mpv import MpvIPC
 from timing import TimedSyllable, TimedWord, Line
 from nlp import FugashiParser, PykakasiParser
-from cjk_utils import split_tokens, split_morae
+from cjk_utils import split_tokens, is_kanji, split_morae
 
 def _fmt_time(sec: float) -> str:
     if sec is None:
@@ -86,7 +86,7 @@ TOK_TIMED_FG = '#4caf50'
 TOK_DEFAULT_FG = '#ccc'
 
 class SyllableWidget(QWidget):
-    """Displays one line's syllable tokens with color-coded states."""
+    """Displays one line's words with furigana and per-syllable highlighting."""
 
     def __init__(self):
         super().__init__()
@@ -95,7 +95,8 @@ class SyllableWidget(QWidget):
         self._layout.setSpacing(0)
         self._labels: list[QLabel] = []
 
-    def set_tokens(self, tokens: list[TimedSyllable | TimedWord], cur_tok: int, timing_active: bool):
+    def set_tokens(self, tokens: list[TimedSyllable], cur_tok: int, timing_active: bool,
+                   words: list = None):
         # clear old
         while self._layout.count():
             item = self._layout.takeAt(0)
@@ -103,72 +104,86 @@ class SyllableWidget(QWidget):
                 item.widget().deleteLater()
         self._labels.clear()
 
-        syl_idx = 0
-        for tok in tokens:
-            lbl = QLabel()
-            lbl.setFont(QFont("sans-serif", 18))
-            lbl.setTextFormat(Qt.TextFormat.RichText)
-            html, style = self.render_html(tok, syl_idx, cur_tok, timing_active)
-            lbl.setText(html)
-            lbl.setStyleSheet(style)
-            self._layout.addWidget(lbl)
-            self._labels.append(lbl)
-            syl_idx += len(tok.get_syllables())
+        if words is None:
+            # Flat mode (Chinese or fallback): one label per syllable
+            for idx, tok in enumerate(tokens):
+                lbl = QLabel(tok.preview())
+                lbl.setFont(QFont("sans-serif", 18))
+                lbl.setStyleSheet(self._syl_style(idx, cur_tok, timing_active, tok.timed))
+                self._layout.addWidget(lbl)
+                self._labels.append(lbl)
+        else:
+            # Word-grouped mode with furigana (Japanese)
+            syl_idx = 0
+            for word in words:
+                lbl = QLabel()
+                lbl.setTextFormat(Qt.TextFormat.RichText)
+                lbl.setFont(QFont("sans-serif", 18))
+                html = self._render_word(word, syl_idx, cur_tok, timing_active)
+                lbl.setText(html)
+                lbl.setStyleSheet("padding: 0px 2px;")
+                self._layout.addWidget(lbl)
+                self._labels.append(lbl)
+                syl_idx += len(word.syllables)
 
         self._layout.addStretch()
 
-    def _syl_style(self, tok, syl_idx, cur_tok, timing_active, word_active) -> str:
-        style = ''
-
-        if syl_idx == cur_tok:
-            style += 'text-decoration: underline; '
-            if timing_active:
-                fg = CUR_TOK_ACTIVE_FG
-            elif syl_idx == cur_tok:
-                fg = CUR_TOK_FG
-        elif word_active and tok.timed:
-            fg = TOK_TIMED_ACTIVE_WORD_FG
-        elif tok.timed:
-            fg = TOK_TIMED_FG
+    def _syl_style(self, idx, cur_tok, timing_active, timed):
+        if idx == cur_tok and timing_active:
+            return "background: #00bcd4; color: black; padding: 2px 4px; border-radius: 3px; font-weight: bold;"
+        elif idx == cur_tok:
+            return "background: #455a64; color: white; padding: 2px 4px; border-radius: 3px; font-weight: bold;"
+        elif timed:
+            return "color: #4caf50; padding: 2px 4px;"
         else:
-            fg = TOK_DEFAULT_FG
+            return "color: #ccc; padding: 2px 4px;"
 
-        style += f'color: {fg}'
-        return style
-
-    def _word_style(self, timing_active, word_active) -> str:
-        style = 'padding: 2px 4px; '
-
-        bg = None
-        if word_active:
-            style += "border-radius:3px; font-weight: bold; "
-            if timing_active:
-                bg = CUR_TOK_ACTIVE_BG
-            else:
-                bg = CUR_TOK_BG
-
-        style += f'background: {bg}'
-        return style
-
-    def render_html(self, tok, syl_start_idx, cur_tok, timing_active) -> (str, str):  # (html, style)
-        word_active = syl_start_idx <= cur_tok < syl_start_idx + len(tok.get_syllables())
-        style = self._word_style(timing_active, word_active)
-
-        spans = []
-        for i, syl in enumerate(tok.get_syllables()):
-            syl_style = self._syl_style(syl, syl_start_idx + i, cur_tok, timing_active, word_active)
-            spans.append(f'<span style="{syl_style}">{syl.preview()}</span>')
-
-        syls_preview = [s.preview() for s in tok.get_syllables()]
-        if tok.preview() != ''.join(syls_preview):
-            display = f'{tok.preview()} [' + ''.join(spans) + ']'
+    def _syl_color(self, syl_idx, cur_tok, timing_active, timed):
+        if syl_idx == cur_tok and timing_active:
+            return "#00bcd4"
+        elif syl_idx == cur_tok:
+            return "#ffffff"
+        elif timed:
+            return "#4caf50"
         else:
-            display = ''.join(spans)
+            return "#999999"
 
+    def _render_word(self, word, syl_start_idx, cur_tok, timing_active):
+        surface = word.text
+        reading = ''.join(s.text for s in word.syllables)
+        has_kanji = any(is_kanji(ch) for ch in surface)
 
-        html = '<div>' + display + '</div>'
-        return (html, style)
+        # Determine overall word background if active syllable is in this word
+        word_has_active = syl_start_idx <= cur_tok < syl_start_idx + len(word.syllables)
+        bg = ""
+        if word_has_active and timing_active:
+            bg = "background-color: #00bcd4;"
+        elif word_has_active:
+            bg = "background-color: #455a64;"
 
+        # Build colored syllable spans for the reading
+        syl_spans = []
+        for i, syl in enumerate(word.syllables):
+            idx = syl_start_idx + i
+            color = self._syl_color(idx, cur_tok, timing_active, syl.timed)
+            syl_spans.append(f'<span style="color:{color};">{syl.text}</span>')
+
+        if has_kanji and surface != reading:
+            # Ruby: surface on bottom, reading on top
+            rt = ''.join(syl_spans)
+            # Color the surface chars too
+            active_idx = cur_tok - syl_start_idx if word_has_active else -1
+            surface_color = self._syl_color(cur_tok, cur_tok, timing_active,
+                                            word.syllables[active_idx].timed) if word_has_active else "#ccc"
+            html = (f'<span style="{bg} border-radius:3px; padding:1px 3px;">'
+                    f'<ruby><span style="color:{surface_color}; font-size:18pt;">{surface}</span>'
+                    f'<rt style="font-size:10pt;">{rt}</rt></ruby></span>')
+        else:
+            # No furigana needed — just show reading syllables
+            html = (f'<span style="{bg} border-radius:3px; padding:1px 3px;">'
+                    + ''.join(syl_spans) + '</span>')
+
+        return html
 
 class MainWindow(QMainWindow):
     def __init__(self, lines: list[Line], mpv: MpvIPC, out_path: str):
@@ -281,7 +296,9 @@ class MainWindow(QMainWindow):
 
         # word/syllable display
         ln = self.lines[self.cur_line]
-        self.syl_widget.set_tokens(ln.tokens, self.cur_tok, self.syl_start is not None)
+        words = ln.tokens if ln.tokens and isinstance(ln.tokens[0], TimedWord) else None
+        self.syl_widget.set_tokens(ln.get_syllables(), self.cur_tok, self.syl_start is not None,
+                                   words=words)
 
         # context below
         below = [self.lines[i].preview() for i in range(self.cur_line+1, min(len(self.lines), self.cur_line+4))]
@@ -476,7 +493,7 @@ def tokenize_lyrics(raw_lines: list[str], tokenizer) -> list[Line]:
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description='Karaoke syllable timer')
+    parser = argparse.ArgumentParser(description="Karaoke syllable timer")
     parser.add_argument('lyrics', help='Lyrics file (.txt)')
     parser.add_argument('media', nargs='?', help='Audio/video file for mpv')
     parser.add_argument('--tokenize', choices=['jp', 'mecab', 'kakasi', 'pykakasi'], default=None,
