@@ -21,8 +21,11 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from mpv import MpvIPC
+from timing import TimedSyllable, Line
 
 def _fmt_time(sec: float) -> str:
+    if sec is None:
+        sec = 0.0
     cs = round(max(0.0, sec) * 100)
     h, r = divmod(cs, 360000); mn, r = divmod(r, 6000); sc, cs = divmod(r, 100)
     return f"{h}:{mn:02}:{sc:02}.{cs:02}"
@@ -30,34 +33,8 @@ def _fmt_time(sec: float) -> str:
 def _fmt_speed(speed: float) -> str:
     return f"{speed:02}"
 
+
 CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save"
-
-@dataclass
-class Token:
-    text:      str
-    preview:   str
-    start:     float = 0.0
-    end:       float = 0.0
-    timed:     bool  = False
-
-@dataclass
-class Line:
-    start:   float
-    end:     float
-    tokens:  list[Token] = field(default_factory=list)
-    preview: str = ""
-
-    def get_start(self):
-        if self.start:
-            return self.start
-        if len(self.tokens) > 0:
-            return self.tokens[0].start
-
-    def get_end(self):
-        if self.end:
-            return self.end
-        if len(self.tokens) > 0:
-            return self.tokens[-1].end
 
 _ASS_HEADER = """\
 [Script Info]
@@ -80,21 +57,21 @@ def export_ass(lines: list[Line], out_path: str):
         f.write(_ASS_HEADER)
         for ln in lines:
             text, last = '', ln.get_start()
-            for tok in ln.tokens:
+            for tok in ln.get_syllables():
                 if tok.timed:
                     gap = tok.start - last
                     extra = 0.0
                     if gap > 0.005:
                         text += '{\\kf%d}' % round(gap * 100)
-                    text += '{\\kf%d}%s' % (round((tok.end - tok.start + extra) * 100), tok.preview)
+                    text += '{\\kf%d}%s' % (round((tok.end - tok.start + extra) * 100), tok.preview())
                     last = tok.end
                 else:
-                    text += tok.preview
+                    text += tok.preview()
             f.write(f"Dialogue: 0,{_fmt_time(ln.get_start())},{_fmt_time(ln.get_end())},"
                     f"Default,,0,0,0,karaoke,{text}\n")
 
 class SyllableWidget(QWidget):
-    """Displays one line's tokens with color-coded states."""
+    """Displays one line's syllable tokens with color-coded states."""
 
     def __init__(self):
         super().__init__()
@@ -103,7 +80,7 @@ class SyllableWidget(QWidget):
         self._layout.setSpacing(0)
         self._labels: list[QLabel] = []
 
-    def set_tokens(self, tokens: list[Token], cur_tok: int, timing_active: bool):
+    def set_tokens(self, tokens: list[TimedSyllable], cur_tok: int, timing_active: bool):
         # clear old
         while self._layout.count():
             item = self._layout.takeAt(0)
@@ -112,7 +89,7 @@ class SyllableWidget(QWidget):
         self._labels.clear()
 
         for idx, tok in enumerate(tokens):
-            lbl = QLabel(tok.preview)
+            lbl = QLabel(tok.preview())
             lbl.setFont(QFont("sans-serif", 18))
             if idx == cur_tok and timing_active:
                 lbl.setStyleSheet("background: #00bcd4; color: black; padding: 2px 4px; border-radius: 3px; font-weight: bold;")
@@ -217,20 +194,20 @@ class MainWindow(QMainWindow):
             self._refresh()
 
     def _start_syl(self):
-        tok = self.lines[self.cur_line].tokens[self.cur_tok]
+        tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
         tok.start = self.last_t
         tok.timed = False
         self.syl_start = self.last_t
 
     def _end_syl(self, advance: bool):
-        tok = self.lines[self.cur_line].tokens[self.cur_tok]
+        tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
         if self.syl_start is not None:
             tok.end = self.last_t; tok.timed = True
         self.syl_start = None
 
         if advance:
             ln = self.lines[self.cur_line]
-            if self.cur_tok < len(ln.tokens)-1:
+            if self.cur_tok < len(ln.get_syllables())-1:
                 self.cur_tok += 1
             elif self.cur_line < len(self.lines)-1:
                 self.cur_line += 1; self.cur_tok = 0
@@ -238,22 +215,22 @@ class MainWindow(QMainWindow):
 
     def _refresh(self):
         # context above
-        above = [self.lines[i].preview for i in range(max(0, self.cur_line-2), self.cur_line)]
+        above = [self.lines[i].preview() for i in range(max(0, self.cur_line-2), self.cur_line)]
         self.ctx_above.setText('\n'.join(above))
 
         # syllable display
         ln = self.lines[self.cur_line]
-        self.syl_widget.set_tokens(ln.tokens, self.cur_tok, self.syl_start is not None)
+        self.syl_widget.set_tokens(ln.get_syllables(), self.cur_tok, self.syl_start is not None)
 
         # context below
-        below = [self.lines[i].preview for i in range(self.cur_line+1, min(len(self.lines), self.cur_line+4))]
+        below = [self.lines[i].preview() for i in range(self.cur_line+1, min(len(self.lines), self.cur_line+4))]
         self.ctx_below.setText('\n'.join(below))
 
         # progress
-        done = sum(1 for tk in ln.tokens if tk.timed)
+        done = sum(1 for tk in ln.get_syllables() if tk.timed)
         self.lbl_progress.setText(
             f"Line {self.cur_line+1}/{len(self.lines)}  "
-            f"Syl {self.cur_tok+1}/{len(ln.tokens)}  ({done} timed)")
+            f"Syl {self.cur_tok+1}/{len(ln.get_syllables())}  ({done} timed)")
 
 
     def keyPressEvent(self, ev: QKeyEvent):
@@ -297,22 +274,22 @@ class MainWindow(QMainWindow):
                 self.last_t = self.mpv.get_time()
                 if self.syl_start is None:
                     self._start_syl()
-                    self.status.showMessage(f"Started: {self.lines[self.cur_line].tokens[self.cur_tok].preview!r}")
+                    self.status.showMessage(f"Started: {self.lines[self.cur_line].get_syllable(self.cur_tok).preview()!r}")
                 else:
-                    tok = self.lines[self.cur_line].tokens[self.cur_tok]
+                    tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
                     self._end_syl(advance=True)
-                    self.status.showMessage(f"✓ {tok.preview!r}  {tok.start:.2f}–{tok.end:.2f}s")
+                    self.status.showMessage(f"✓ {tok.preview()!r}  {tok.start:.2f}–{tok.end:.2f}s")
                 self._refresh()
 
             # N      — end current syllable, leave a gap (don't start next syllable)
             elif key == Qt.Key.Key_N:
                 self.last_t = self.mpv.get_time()
                 if self.syl_start is not None:
-                    tok = self.lines[self.cur_line].tokens[self.cur_tok]
+                    tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
                     self._end_syl(advance=False)
-                    self.status.showMessage(f"✓ {tok.preview!r} ended, gap …")
+                    self.status.showMessage(f"✓ {tok.preview()!r} ended, gap …")
                 ln = self.lines[self.cur_line]
-                if self.cur_tok < len(ln.tokens)-1: self.cur_tok += 1
+                if self.cur_tok < len(ln.get_syllables())-1: self.cur_tok += 1
                 elif self.cur_line < len(self.lines)-1: self.cur_line += 1; self.cur_tok = 0
                 self._refresh()
 
@@ -327,7 +304,7 @@ class MainWindow(QMainWindow):
 
             # R      — reset current line
             elif key == Qt.Key.Key_R:
-                for tk in self.lines[self.cur_line].tokens: tk.timed=False; tk.start=tk.end=0.0
+                for tk in self.lines[self.cur_line].get_syllables(): tk.timed=False; tk.start=tk.end=0.0
                 self.cur_tok = 0; self.syl_start = None
                 self.status.showMessage("Line reset.")
                 self._refresh()
@@ -371,7 +348,7 @@ class MainWindow(QMainWindow):
             self.cur_tok -= 1
 
     def token_next(self):
-        if self.cur_tok < len(self.lines[self.cur_line].tokens)-1:
+        if self.cur_tok < len(self.lines[self.cur_line].get_syllables())-1:
             self.cur_tok += 1
 
     def line_prev(self):
@@ -391,14 +368,14 @@ class MainWindow(QMainWindow):
 
 def split_tokens(text):
     # Split by character for CJK characters and spaces for Latin characters
-    # Regex matches: 
+    # Regex matches:
     # [^\s\w] -> Any punctuation, symbols, or formatting marks
     # [\u4e00-\u9fff] -> All standard Chinese, Japanese, and Korean characters
     # \w+ -> Latin characters/words
     pattern = r'[^\s\w]|[\u4e00-\u9fff]|\w+'
-    
+
     tokens = re.findall(pattern, text)
-    return [Token(tok, tok) for tok in tokens]
+    return [TimedSyllable(tok, mode='start_end') for tok in tokens]
 
 
 def load_lyrics(path: str) -> list[Line]:
@@ -408,9 +385,9 @@ def load_lyrics(path: str) -> list[Line]:
             raw = raw.strip()
             if raw:
                 lines.append(Line(start=0.0, end=0.0,
-                                  tokens=(split_tokens(raw)),
-                                  preview=raw))
+                                  tokens=(split_tokens(raw))))
     return lines
+
 
 def main():
     if len(sys.argv) < 2:

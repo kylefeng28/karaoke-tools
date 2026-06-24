@@ -2,58 +2,11 @@ import re
 import pysubs2
 from dataclasses import dataclass, field
 from utils import convert_to_hiragana
+from timing import TimedWord, TimedSyllable, Line
 
 # Matches both \k and \kf timing tags (with optional space before the number); group 1 = timing, group 2 = syllable text
 K_TOKEN_RE = re.compile(r'\{\\kf? ?(\d+)\}([^{]*)')
 
-
-# Represents a syllable marked with \k tags
-@dataclass
-class TimedSyllable:
-    text: str
-    timing: int = None
-
-    def __str__(self):
-        return f"{{{self.text}, {self.timing}}}"
-
-
-# Represents a word with its k-timed syllables
-@dataclass
-class TimedWord:
-    text: str
-    syllables: list[TimedSyllable] = field(default_factory=list)
-
-    def add_syllable(self, syllable):
-        self.syllables.append(syllable)
-
-    def __str__(self):
-        if not self.syllables:
-            return self.text
-        syls = [s.text for s in self.syllables]
-        if ''.join(syls) == self.text:
-            return self.text
-        return self.text + ' {' + '-'.join(syls) + '}'
-
-    def detailed_str(self):
-        syls = [s.text for s in self.syllables]
-        timings = [str(s.timing) for s in self.syllables]
-        timings_str = ' (' + ','.join(timings) + ')'
-        return '-'.join(syls) + timings_str
-
-    def convert_hiragana(self):
-        is_whole_word = len(self.syllables) == 1
-        converted = convert_to_hiragana(self.text, is_whole_word)
-        self.text = converted
-
-        for syl in self.syllables:
-            converted = convert_to_hiragana(syl.text, is_whole_word)
-            syl.text = converted
-
-
-# Represents a line of words
-@dataclass
-class Line:
-    words: TimedWord = field(default_factory=list)
 
 def parse_k_timing(line: str) -> list[TimedWord]:
     """
@@ -94,16 +47,25 @@ def parse_k_timing(line: str) -> list[TimedWord]:
     return words
 
 
-def read_ass_file(input_file):
-    lines = pysubs2.load(input_file)
+def convert_hiragana(word: TimedWord):
+    is_whole_word = len(word.syllables) == 1
+    converted = convert_to_hiragana(word.text, is_whole_word)
+    word.text = converted
 
-    for line in lines:
-        if line.text.startswith('!'):
+    for syl in word.syllables:
+        converted = convert_to_hiragana(syl.text, is_whole_word)
+        syl.text = converted
+
+
+def read_ass_file(input_file) -> Line:
+    sub_lines = pysubs2.load(input_file)
+
+    lines = []
+    for sub_line in sub_lines:
+        if sub_line.text.startswith('!'):
             continue
 
-        timed_words = parse_k_timing(line.text)
-        for word in timed_words:
-            word.convert_hiragana()
-            print(word, end='\t')
+        timed_words = parse_k_timing(sub_line.text)
+        lines.append(Line(tokens=timed_words))
 
-        print()
+    return lines

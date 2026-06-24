@@ -27,7 +27,8 @@ import jaconv
 import pysubs2
 from dataclasses import dataclass
 
-from subs import parse_k_timing, TimedSyllable, TimedWord
+from timing import TimedSyllable, TimedWord
+from subs import parse_k_timing, convert_hiragana
 from nlp import tagger
 from utils import is_kanji
 
@@ -243,8 +244,8 @@ def merge_files(ass_path: str, jp_path: str):
             continue
 
         words = parse_k_timing(ass_line.text)
-        for w in words:
-            w.convert_hiragana()
+        for word in words:
+            convert_hiragana(word)
         syls = [s for w in words for s in w.syllables]
         merged_line = merge_line(syls, jp, state)
 
