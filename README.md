@@ -33,12 +33,21 @@ kawa tteikerunoha jibunjishin dake 　soredakesa
 ...
 ```
 
-# REPL mode
+# Lyric Syllable Timing tool
 ```
-$ uv run main.py
-Enter Japanese text with kanji:
-漢字を入力して：
-> 私は人間です
-私[わたし]は人間[にんげん]です
-watashi ha ningen desu
+$ uv run gui.py lyrics.txt video_file.mp4
 ```
+
+### Demo
+
+**Running timing tool**:
+
+<a href="https://github.com/user-attachments/assets/3f309c06-daf1-4548-a746-007bf0fcdb0f">
+  <img width="566" height="462" alt="timing_demo" src="https://github.com/user-attachments/assets/cd9ee706-76dd-485c-a475-ec0b22a6f93e" />
+</a>
+
+**mpv with `.ass` subs generated with tool**:
+
+<a href="https://github.com/user-attachments/assets/6af0e409-48c5-4c92-b8ca-21e676c1d6e1">
+  <img width="1180" height="900" alt="mpv_with_subs" src="https://github.com/user-attachments/assets/8fa5f58d-fd7e-4702-a45f-3b75d5f5c41a" />
+</a>
