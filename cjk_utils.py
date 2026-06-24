@@ -1,14 +1,65 @@
+import re
 import unicodedata
 import jaconv
 
 
+# \u4E00-\u9FFF   # CJK Unified Ideographs (core)
+# \u3400-\u4DBF   # CJK Extension A
+# \u20000-\u2A6DF # CJK Extension B
 def is_kanji(ch):
-    return 'CJK UNIFIED IDEOGRAPH' in unicodedata.name(ch)
+    return unicodedata.name(ch).startswith('CJK UNIFIED IDEOGRAPH')
 
 
+# \u3040-\u309F
 def is_hiragana(ch):
-    return 'HIRAGANA' in unicodedata.name(ch)
+    return unicodedata.name(ch).startswith('HIRAGANA')
 
+
+# \u30A0-\u30FF
+def is_katakana(ch):
+    return unicodedata.name(ch).startswith('KATAKANA')
+
+
+def is_kana(ch):
+    return is_hiragana(ch) or is_katakana(ch)
+
+
+# \uAC00-\uD7AF
+def is_hangul(ch):
+    return unicodedata.name(ch).startswith('HANGUL')
+
+
+def is_cjk(ch):
+    return is_kanji(ch) or is_kana(ch) or is_hangul(ch)
+
+
+def split_tokens(text):
+    tokens = []
+    current_latin = []
+
+    def flush_latin():
+        nonlocal tokens, current_latin
+        # Flush buffered Latin text as space-split words
+        if current_latin:
+            tokens.extend(re.findall(r'\w+', ''.join(current_latin)))
+            current_latin = []
+
+    for ch in text:
+        if is_cjk(ch):
+            flush_latin()
+            tokens.append(ch)
+        elif unicodedata.category(ch) == 'Zs' or ch.isspace():
+            flush_latin()
+        elif unicodedata.category(ch).startswith('P'):
+            # Punctuation: flush latin buffer, then emit punctuation as its own token
+            flush_latin()
+            tokens.append(ch)
+        else:
+            current_latin.append(ch)
+
+    flush_latin()
+
+    return tokens
 
 def split_okurigana(text, hiragana):
     """ 送り仮名 processing
@@ -27,7 +78,7 @@ def split_okurigana(text, hiragana):
     if not text:
         return
     # Hiragana prefix (e.g. お茶、ご無沙汰): yield the leading hiragana as-is
-    if is_hiragana(text[0]):
+    if is_kana(text[0]):
         yield (text[0],)
         yield from split_okurigana(text[1:], hiragana[1:])
         return

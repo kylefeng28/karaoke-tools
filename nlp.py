@@ -1,7 +1,7 @@
 import fugashi
 import ipadic
 import jaconv
-from utils import is_kanji, is_hiragana, split_okurigana
+from cjk_utils import is_kanji
 
 # Pykakasi is simpler and faster, based on dictionary lookups: https://codeberg.org/miurahr/pykakasi
 import pykakasi

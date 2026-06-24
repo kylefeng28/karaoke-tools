@@ -30,7 +30,7 @@ from dataclasses import dataclass
 from timing import TimedSyllable, TimedWord
 from subs import parse_k_timing, convert_hiragana
 from nlp import tagger
-from utils import is_kanji
+from cjk_utils import is_kanji
 
 
 # ── formatting ────────────────────────────────────────────────────────────────

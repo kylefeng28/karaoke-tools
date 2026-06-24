@@ -12,8 +12,7 @@ Controls:
 
 import os
 import sys
-from dataclasses import dataclass, field
-import re
+from dataclasses import dataclass
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QStatusBar)
@@ -22,6 +21,7 @@ from PyQt6.QtGui import QFont, QKeyEvent
 
 from mpv import MpvIPC
 from timing import TimedSyllable, Line
+from cjk_utils import split_tokens
 
 def _fmt_time(sec: float) -> str:
     if sec is None:
@@ -89,20 +89,27 @@ class SyllableWidget(QWidget):
         self._labels.clear()
 
         for idx, tok in enumerate(tokens):
-            lbl = QLabel(tok.preview())
+            lbl = QLabel()
             lbl.setFont(QFont("sans-serif", 18))
-            if idx == cur_tok and timing_active:
-                lbl.setStyleSheet("background: #00bcd4; color: black; padding: 2px 4px; border-radius: 3px; font-weight: bold;")
-            elif idx == cur_tok:
-                lbl.setStyleSheet("background: #455a64; color: white; padding: 2px 4px; border-radius: 3px; font-weight: bold;")
-            elif tok.timed:
-                lbl.setStyleSheet("color: #4caf50; padding: 2px 4px;")
-            else:
-                lbl.setStyleSheet("color: #ccc; padding: 2px 4px;")
+            lbl.setStyleSheet(self.style(tok, idx, cur_tok, timing_active))
+            lbl.setText(self.render(tok))
             self._layout.addWidget(lbl)
             self._labels.append(lbl)
 
         self._layout.addStretch()
+
+    def style(self, tok, idx, cur_tok, timing_active):
+        if idx == cur_tok and timing_active:
+            return "background: #00bcd4; color: black; padding: 2px 4px; border-radius: 3px; font-weight: bold;"
+        elif idx == cur_tok:
+            return "background: #455a64; color: white; padding: 2px 4px; border-radius: 3px; font-weight: bold;"
+        elif tok.timed:
+            return "color: #4caf50; padding: 2px 4px;"
+        else:
+            return "color: #ccc; padding: 2px 4px;"
+
+    def render(self, tok):
+        return tok.preview()
 
 
 class MainWindow(QMainWindow):
@@ -362,19 +369,13 @@ class MainWindow(QMainWindow):
             self.cur_tok = 0
 
     def closeEvent(self, ev):
-        self.mpv.close()
+        if self.mpv:
+            self.mpv.close()
         super().closeEvent(ev)
 
 
-def split_tokens(text):
-    # Split by character for CJK characters and spaces for Latin characters
-    # Regex matches:
-    # [^\s\w] -> Any punctuation, symbols, or formatting marks
-    # [\u4e00-\u9fff] -> All standard Chinese, Japanese, and Korean characters
-    # \w+ -> Latin characters/words
-    pattern = r'[^\s\w]|[\u4e00-\u9fff]|\w+'
-
-    tokens = re.findall(pattern, text)
+def get_timed_syllables(text):
+    tokens = split_tokens(text)
     return [TimedSyllable(tok, mode='start_end') for tok in tokens]
 
 
@@ -385,21 +386,20 @@ def load_lyrics(path: str) -> list[Line]:
             raw = raw.strip()
             if raw:
                 lines.append(Line(start=0.0, end=0.0,
-                                  tokens=(split_tokens(raw))))
+                                  tokens=(get_timed_syllables(raw))))
     return lines
 
 
 def main():
-    if len(sys.argv) < 2:
-        print("usage: <lyrics_file> [media_file]")
-        sys.exit(1)
+    import argparse
+    parser = argparse.ArgumentParser(description='Karaoke syllable timer')
+    parser.add_argument('lyrics', help='Lyrics file (.txt)')
+    parser.add_argument('media', nargs='?', help='Audio/video file for mpv')
 
-    lyrics_file = sys.argv[1]
-    if len(sys.argv) >= 3:
-        media_file = sys.argv[2]
-    else:
-        media_file = None
+    args = parser.parse_args()
 
+    lyrics_file = args.lyrics
+    media_file = args.media
     out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
 
     lines = load_lyrics(lyrics_file)

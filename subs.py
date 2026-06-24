@@ -1,7 +1,6 @@
 import re
 import pysubs2
-from dataclasses import dataclass, field
-from utils import convert_to_hiragana
+from cjk_utils import convert_to_hiragana
 from timing import TimedWord, TimedSyllable, Line
 
 # Matches both \k and \kf timing tags (with optional space before the number); group 1 = timing, group 2 = syllable text
