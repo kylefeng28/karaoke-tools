@@ -12,7 +12,6 @@ Controls:
 
 import os
 import sys
-from dataclasses import dataclass
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QStatusBar)
@@ -35,6 +34,8 @@ def _fmt_speed(speed: float) -> str:
 
 
 CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save"
+
+USE_HTML = True
 
 _ASS_HEADER = """\
 [Script Info]
@@ -105,8 +106,15 @@ class SyllableWidget(QWidget):
         for idx, tok in enumerate(tokens):
             lbl = QLabel()
             lbl.setFont(QFont("sans-serif", 18))
-            lbl.setStyleSheet(self.style(tok, idx, cur_tok, timing_active))
-            lbl.setText(self.render(tok))
+            if USE_HTML:
+                lbl.setTextFormat(Qt.TextFormat.RichText)
+                html, style = self.render_html(tok, idx, cur_tok, timing_active)
+                lbl.setText(html)
+                lbl.setStyleSheet(style)
+            else:
+                text, style = self.render_plaintext(tok)
+                lbl.setText(text)
+                lbl.setStyleSheet(style)
             self._layout.addWidget(lbl)
             self._labels.append(lbl)
 
@@ -122,7 +130,7 @@ class SyllableWidget(QWidget):
         else:
             return (None, TOK_DEFAULT_FG)
 
-    def style(self, tok, idx, cur_tok, timing_active) -> str:
+    def render_plaintext(self, tok, idx, cur_tok, timing_active) -> (str, str):  # (text, style)
         bg, fg = self._syl_color(tok, idx, cur_tok, timing_active)
         style = "padding: 2px 4px;"
         if bg:
@@ -131,10 +139,20 @@ class SyllableWidget(QWidget):
             style += f"color: {fg}; "
         if idx == cur_tok:
             style += "border-radius: 3px; font-weight: bold; "
-        return style
 
-    def render(self, tok):
-        return tok.preview()
+        return (tok.preview(), style)
+
+    def render_html(self, tok, idx, cur_tok, timing_active) -> (str, str):  # (html, style)
+        bg, fg = self._syl_color(tok, idx, cur_tok, timing_active)
+        syl_style = f'color: {fg};'
+        span = f'<span style="{syl_style}">{tok.preview()}</span>'
+
+        style = f'padding: 2px 4px; background: {bg}; '
+        if idx == cur_tok:
+            style += "border-radius:3px; font-weight: bold; "
+
+        html = '<div>' + span + '</div>'
+        return (html, style)
 
 
 class MainWindow(QMainWindow):
