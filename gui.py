@@ -70,6 +70,20 @@ def export_ass(lines: list[Line], out_path: str):
             f.write(f"Dialogue: 0,{_fmt_time(ln.get_start())},{_fmt_time(ln.get_end())},"
                     f"Default,,0,0,0,karaoke,{text}\n")
 
+
+# Styles
+MAIN_BG = '#263238'
+MAIN_FG = '#eceff1'
+
+CTX_LINE_FG = '#78909c'
+CUR_TOK_ACTIVE_BG = '#00bcd4'
+CUR_TOK_ACTIVE_FG = 'black'
+
+CUR_TOK_BG = '#455a64'
+CUR_TOK_FG = 'white'
+TOK_TIMED_FG = '#4caf50'
+TOK_DEFAULT_FG = '#ccc'
+
 class SyllableWidget(QWidget):
     """Displays one line's syllable tokens with color-coded states."""
 
@@ -98,15 +112,26 @@ class SyllableWidget(QWidget):
 
         self._layout.addStretch()
 
-    def style(self, tok, idx, cur_tok, timing_active):
+    def _syl_color(self, tok, idx, cur_tok, timing_active) -> (str, str):  # (bg, fg)
         if idx == cur_tok and timing_active:
-            return "background: #00bcd4; color: black; padding: 2px 4px; border-radius: 3px; font-weight: bold;"
+            return (CUR_TOK_ACTIVE_BG, CUR_TOK_ACTIVE_FG)
         elif idx == cur_tok:
-            return "background: #455a64; color: white; padding: 2px 4px; border-radius: 3px; font-weight: bold;"
+            return (CUR_TOK_BG, CUR_TOK_FG)
         elif tok.timed:
-            return "color: #4caf50; padding: 2px 4px;"
+            return (None, TOK_TIMED_FG)
         else:
-            return "color: #ccc; padding: 2px 4px;"
+            return (None, TOK_DEFAULT_FG)
+
+    def style(self, tok, idx, cur_tok, timing_active) -> str:
+        bg, fg = self._syl_color(tok, idx, cur_tok, timing_active)
+        style = "padding: 2px 4px;"
+        if bg:
+            style += f"background: {bg}; "
+        if fg:
+            style += f"color: {fg}; "
+        if idx == cur_tok:
+            style += "border-radius: 3px; font-weight: bold; "
+        return style
 
     def render(self, tok):
         return tok.preview()
@@ -126,7 +151,7 @@ class MainWindow(QMainWindow):
 
         self.setWindowTitle("Karaoke Syllable Timer")
         self.setMinimumSize(700, 400)
-        self.setStyleSheet("background: #263238; color: #eceff1;")
+        self.setStyleSheet(f"background: {MAIN_BG}; color: {MAIN_FG};")
 
         central = QWidget()
         self.setCentralWidget(central)
@@ -149,7 +174,7 @@ class MainWindow(QMainWindow):
         # context lines above
         self.ctx_above = QLabel()
         self.ctx_above.setFont(QFont("sans-serif", 13))
-        self.ctx_above.setStyleSheet("color: #78909c; padding: 4px;")
+        self.ctx_above.setStyleSheet(f"color: {CTX_LINE_FG}; padding: 4px;")
         self.ctx_above.setWordWrap(True)
         layout.addWidget(self.ctx_above)
 
@@ -160,7 +185,7 @@ class MainWindow(QMainWindow):
         # context lines below
         self.ctx_below = QLabel()
         self.ctx_below.setFont(QFont("sans-serif", 13))
-        self.ctx_below.setStyleSheet("color: #78909c; padding: 4px;")
+        self.ctx_below.setStyleSheet(f"color: {CTX_LINE_FG}; padding: 4px;")
         self.ctx_below.setWordWrap(True)
         layout.addWidget(self.ctx_below)
 
