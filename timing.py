@@ -12,7 +12,7 @@ class Token:
 @dataclass
 class TimedSyllable(Token):
     """
-    Represents a syllable marked with k-timed tags (\k or \kf).
+    Represents a syllable marked with k-timed tags (\\k or \\kf).
     Could be a standalone syllable or part of a TimedWord
     """
     text:      str
@@ -48,6 +48,7 @@ class TimedWord(Token):
     """
     text: str
     syllables: list[TimedSyllable] = field(default_factory=list)
+    furigana_pairs: list = None  # [(surface_chunk, reading), ...] or [(kana_char,)] for plain kana
 
     def __post_init__(self):
         for syl_idx, syllable in enumerate(self.syllables):

@@ -154,20 +154,81 @@ class SyllableWidget(QWidget):
         word_active = syl_start_idx <= cur_tok < syl_start_idx + len(tok.get_syllables())
         style = self._word_style(timing_active, word_active)
 
-        spans = []
-        for i, syl in enumerate(tok.get_syllables()):
-            syl_style = self._syl_style(syl, syl_start_idx + i, cur_tok, timing_active, word_active)
-            spans.append(f'<span style="{syl_style}">{syl.preview()}</span>')
-
-        syls_preview = [s.preview() for s in tok.get_syllables()]
-        if tok.preview() != ''.join(syls_preview):
-            display = f'{tok.preview()} [' + ''.join(spans) + ']'
+        # For TimedWord with furigana_pairs, render with <ruby> tags
+        if isinstance(tok, TimedWord) and tok.furigana_pairs:
+            html = self._render_furigana(tok, syl_start_idx, cur_tok, timing_active, word_active)
         else:
-            display = ''.join(spans)
+            # Flat syllable rendering (Chinese, or TimedSyllable, or words without furigana)
+            spans = []
+            for i, syl in enumerate(tok.get_syllables()):
+                syl_style = self._syl_style(syl, syl_start_idx + i, cur_tok, timing_active, word_active)
+                spans.append(f'<span style="{syl_style}">{syl.preview()}</span>')
+            html = ''.join(spans)
 
-
-        html = '<div>' + display + '</div>'
         return (html, style)
+
+    def _render_furigana(self, tok: TimedWord, syl_start_idx, cur_tok, timing_active, word_active) -> str:
+        """Render a word with ruby furigana annotations above kanji."""
+        from cjk_utils import is_kanji
+        # Map morae to furigana pairs: each pair consumes some morae from the reading
+        # furigana_pairs: [("強","つよ"), ("く",)] means "強" has reading "つよ", "く" is plain kana
+        syllables = tok.syllables
+        syl_pos = 0  # current position in syllables list
+        parts = []
+
+        for pair in tok.furigana_pairs:
+            if len(pair) == 2:
+                surface_chunk, reading = pair
+            else:
+                surface_chunk = pair[0]
+                reading = None
+
+            if reading and surface_chunk != reading:
+                # Kanji chunk: find how many morae correspond to this reading
+                # by matching morae text against the reading string
+                consumed = []
+                reading_so_far = ''
+                while syl_pos < len(syllables) and reading_so_far != reading:
+                    consumed.append(syl_pos)
+                    reading_so_far += syllables[syl_pos].text
+                    syl_pos += 1
+
+                # Build colored rt (furigana) spans
+                rt_spans = []
+                for i in consumed:
+                    syl = syllables[i]
+                    syl_style = self._syl_style(syl, syl_start_idx + i, cur_tok, timing_active, word_active)
+                    rt_spans.append(f'<span style="{syl_style}">{syl.text}</span>')
+
+                # Surface color: use active syllable color if word is active
+                if word_active:
+                    active_local = cur_tok - syl_start_idx
+                    if any(i == (cur_tok - syl_start_idx) for i in consumed):
+                        surface_style = self._syl_style(syllables[cur_tok - syl_start_idx],
+                                                        cur_tok, cur_tok, timing_active, word_active)
+                    else:
+                        # not the active syllable, use first consumed syllable's style
+                        surface_style = self._syl_style(syllables[consumed[0]],
+                                                        syl_start_idx + consumed[0], cur_tok, timing_active, word_active)
+                else:
+                    surface_style = self._syl_style(syllables[consumed[0]],
+                                                    syl_start_idx + consumed[0], cur_tok, timing_active, word_active)
+
+                parts.append(
+                    f'<ruby><span style="{surface_style}; font-size:18pt;">{surface_chunk}</span>'
+                    f'<rt style="font-size:9pt;">{"".join(rt_spans)}</rt></ruby>'
+                )
+            else:
+                # Plain kana: each character is one mora, render directly
+                if syl_pos < len(syllables):
+                    syl = syllables[syl_pos]
+                    syl_style = self._syl_style(syl, syl_start_idx + syl_pos, cur_tok, timing_active, word_active)
+                    parts.append(f'<span style="{syl_style}">{surface_chunk}</span>')
+                    syl_pos += 1
+                else:
+                    parts.append(surface_chunk)
+
+        return ''.join(parts)
 
 
 class MainWindow(QMainWindow):
@@ -460,7 +521,8 @@ def japanese_tokenizer(parser):
             hiragana = token.reading or token.surface
             morae = split_morae(hiragana)
             syllables = [TimedSyllable(m, mode='start_end') for m in morae]
-            tokens.append(TimedWord(text=surface, syllables=syllables))
+            tokens.append(TimedWord(text=surface, syllables=syllables,
+                                    furigana_pairs=token.furigana_pairs))
 
         return tokens
 
