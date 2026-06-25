@@ -92,14 +92,14 @@ class Line:
     def get_start(self):
         if self.start:
             return self.start
-        if len(self.tokens) > 0:
-            return self.tokens[0].start
+        if len(self.get_syllables()) > 0:
+            return self.get_syllable(0).start
 
     def get_end(self):
         if self.end:
             return self.end
-        if len(self.tokens) > 0:
-            return self.tokens[-1].end
+        if len(self.get_syllables()) > 0:
+            return self.get_syllable(-1).start
 
     def preview(self):
         return join_tokens([token.preview() for token in self.tokens])

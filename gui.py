@@ -20,7 +20,8 @@ from PyQt6.QtGui import QFont, QKeyEvent
 
 from mpv import MpvIPC
 from timing import TimedSyllable, TimedWord, Line
-from cjk_utils import split_tokens
+from nlp import FugashiParser, PykakasiParser
+from cjk_utils import split_tokens, split_morae
 
 def _fmt_time(sec: float) -> str:
     if sec is None:
@@ -158,7 +159,14 @@ class SyllableWidget(QWidget):
             syl_style = self._syl_style(syl, syl_start_idx + i, cur_tok, timing_active, word_active)
             spans.append(f'<span style="{syl_style}">{syl.preview()}</span>')
 
-        html = '<div>' + ''.join(spans) + '</div>'
+        syls_preview = [s.preview() for s in tok.get_syllables()]
+        if tok.preview() != ''.join(syls_preview):
+            display = f'{tok.preview()} [' + ''.join(spans) + ']'
+        else:
+            display = ''.join(spans)
+
+
+        html = '<div>' + display + '</div>'
         return (html, style)
 
 
@@ -368,11 +376,11 @@ class MainWindow(QMainWindow):
 
         if key == Qt.Key.Key_Right:
             self.syl_start = None
-            self.token_next()
+            self.token_next() or self.line_next()
             self._refresh()
         elif key == Qt.Key.Key_Left:
             self.syl_start = None
-            self.token_prev()
+            self.token_prev() or (self.line_prev() and self.line_end())
             self._refresh()
         elif key == Qt.Key.Key_Down:
             self.syl_start = None
@@ -416,25 +424,53 @@ class MainWindow(QMainWindow):
             self.cur_tok = 0
             return True
 
+    def line_end(self):
+        self.cur_tok = len(self.lines[self.cur_line].get_syllables())-1
+        return True
+
     def closeEvent(self, ev):
         if self.mpv:
             self.mpv.close()
         super().closeEvent(ev)
 
 
-def get_timed_syllables(text):
-    tokens = split_tokens(text)
-    return [TimedSyllable(tok, mode='start_end') for tok in tokens]
-
-
-def load_lyrics(path: str) -> list[Line]:
-    lines = []
+def load_raw_lyrics(path: str) -> list[str]:
+    line = []
     with open(path) as f:
         for raw in f:
             raw = raw.strip()
             if raw:
-                lines.append(Line(start=0.0, end=0.0,
-                                  tokens=(get_timed_syllables(raw))))
+                line.append(raw)
+    return line
+
+
+def generic_tokenizer(text):
+    """Generic tokenizer, suitable for Chinese and Korean. Can be used as a fallback for other languages."""
+    tokens = split_tokens(text)
+    return [TimedSyllable(tok, mode='start_end') for tok in tokens]
+
+
+def japanese_tokenizer(parser):
+    def tokenizer(text: str) -> list[TimedWord]:
+        """Japanese text tokenizer. Processes text using MeCab/kakasi and converts them into mora-based TimedSyllables"""
+        tokens = []
+        jp_tokens = parser.convert(text)
+        for token in jp_tokens:
+            surface = token.surface
+            hiragana = token.reading or token.surface
+            morae = split_morae(hiragana)
+            syllables = [TimedSyllable(m, mode='start_end') for m in morae]
+            tokens.append(TimedWord(text=surface, syllables=syllables))
+
+        return tokens
+
+    return tokenizer
+
+
+def tokenize_lyrics(raw_lines: list[str], tokenizer) -> list[Line]:
+    lines = []
+    for raw in raw_lines:
+        lines.append(Line(start=0.0, end=0.0, tokens=tokenizer(raw)))
     return lines
 
 
@@ -443,17 +479,37 @@ def main():
     parser = argparse.ArgumentParser(description='Karaoke syllable timer')
     parser.add_argument('lyrics', help='Lyrics file (.txt)')
     parser.add_argument('media', nargs='?', help='Audio/video file for mpv')
+    parser.add_argument('--tokenize', choices=['jp', 'mecab', 'kakasi', 'pykakasi'], default=None,
+                        help='(None)=no special parsing. split by CJK characters and Latin alphabet words, jp=use MeCab to generate furigana/readings for Japanese text')
+    parser.add_argument('--out', '-o', default=None,
+                        help='path to export generated .ass file')
 
     args = parser.parse_args()
 
     lyrics_file = args.lyrics
     media_file = args.media
-    out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
+    out_path = args.out
 
-    lines = load_lyrics(lyrics_file)
+    if not out_path:
+        out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
+
+    raw_lines = load_raw_lyrics(lyrics_file)
+
+    if args.tokenize == 'jp' or args.tokenize == 'mecab':
+        print('Tokenizing with MeCab')
+        tokenizer = japanese_tokenizer(FugashiParser())
+    elif args.tokenize == 'kakasi' or args.tokenize == 'pykakasi':
+        print('Tokenizing with pykakasi')
+        tokenizer = japanese_tokenizer(PykakasiParser())
+    else:
+        print('Using generic tokenizer')
+        tokenizer = generic_tokenizer
+
+    lines = tokenize_lyrics(raw_lines, tokenizer)
 
     if not lines:
-        print(f"No lines found in {lyrics_file}"); sys.exit(1)
+        print(f"No lines found in {lyrics_file}")
+        sys.exit(1)
 
     mpv = MpvIPC(media_file) if media_file else None
 

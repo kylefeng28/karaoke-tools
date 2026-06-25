@@ -48,7 +48,9 @@ class FugashiParser:
                 continue
 
             kana = word.feature.kana
-            if any(is_kanji(ch) for ch in surface) and kana:
+            if surface.isspace():
+                continue
+            elif any(is_kanji(ch) for ch in surface) and kana:
                 hiragana = jaconv.kata2hira(kana)
                 pairs = list(split_okurigana(surface, hiragana))
             else:

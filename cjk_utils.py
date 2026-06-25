@@ -64,8 +64,9 @@ def split_tokens(text: str) -> list[str]:
     """
     Split by character for CJK characters and spaces for Latin characters.
     Accounts for Japanese small kana and mixed CJK/Latin text.
-    This is a generic used as a generic character stream / parsing fallback;
-    for proper word segmentation, see nlp.py which uses MeCab to parse Japanese text.
+    This is intended to be used mainly for Chinese and Korean texts since 1 character = 1 syllable,
+    and as a generic/fallback character stream splitter for Japanese and other languages.
+    For proper word segmentation in Japanese, e.g. see nlp.py which uses MeCab to parse Japanese text.
 
     For example:
     '我的名字' -> ['我', '的', '名', '字'] # all hanzi/kanji
@@ -165,6 +166,7 @@ def split_okurigana(text, hiragana):
             yield from split_okurigana(text[i + 1:], hiragana[j + 1:])
             return
 
+
 def convert_to_hiragana(s: str, is_whole_word):
     # Convention is that uppercase words are English or non-Japanese loanwords
     if s.isupper():
@@ -177,3 +179,18 @@ def convert_to_hiragana(s: str, is_whole_word):
         return "お"
 
     return jaconv.alphabet2kana(s)
+
+
+def split_morae(hiragana: str) -> list[str]:
+    """
+    Split a hiragana string into morae.
+    Small kana (ゃゅょぁぃぅぇぉゎ) attach to the preceding character.
+    っ (geminate), ー (chōon) and everything else still get their own mora
+    """
+    morae = []
+    for ch in hiragana:
+        if ch in SMALL_KANA and morae:
+            morae[-1] += ch
+        else:
+            morae.append(ch)
+    return morae
