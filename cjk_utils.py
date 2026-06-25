@@ -1,6 +1,27 @@
 import unicodedata
 import jaconv
 
+from dataclasses import dataclass
+
+
+@dataclass
+class JapaneseToken:
+    """One MeCab morpheme with its furigana breakdown"""
+
+    surface: str                 # e.g. "強く"
+    reading: str                 # hiragana reading, e.g. "つよく"
+    furigana_pairs: list         # from split_okurigana: [("強","つよ"), ("く",)]
+
+    def __str__(self):
+        if not self.reading or self.surface == self.reading:
+            return self.surface
+        s = f'{self.surface} ({self.reading})'
+        if len(self.furigana_pairs) <= 1:
+            return s
+        else:
+            furigana_pairs_str = '; '.join([','.join(pair) for pair in self.furigana_pairs])
+            return s + f' [{furigana_pairs_str}]'
+
 
 # \u4E00-\u9FFF   # CJK Unified Ideographs (core)
 # \u3400-\u4DBF   # CJK Extension A

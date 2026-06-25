@@ -1,7 +1,7 @@
 import fugashi
 import ipadic
 import jaconv
-from cjk_utils import is_kanji
+from cjk_utils import is_kanji, split_okurigana, JapaneseToken
 
 # Pykakasi is simpler and faster, based on dictionary lookups: https://codeberg.org/miurahr/pykakasi
 import pykakasi
@@ -12,17 +12,20 @@ class PykakasiParser:
 
         result = []
         for item in kks_result:
-            orig = item['orig']
+            surface = item['orig']
             hiragana = item['hira']
             katakana = item['kana']
-            romaji = item['hepburn']
+            # romaji = item['hepburn']
 
-            if orig.isspace():
-                result += [(orig,)]
-            elif orig == hiragana or orig == katakana:
-                result += [(orig,)]
+            if surface.isspace():
+                continue
+            elif surface == hiragana or surface == katakana:
+                pairs = (surface,)
             else:
-                result += [(orig, hiragana)]
+                pairs = list(split_okurigana(surface, hiragana))
+
+            token = JapaneseToken(surface=surface, reading=hiragana, furigana_pairs=pairs)
+            result.append(token)
 
         return result
 
@@ -40,18 +43,19 @@ class FugashiParser:
     def convert(self, text):
         result = []
         for word in tagger(text):
-            orig = word.surface
-            if not orig:
+            surface = word.surface
+            if not surface:
                 continue
 
-            if any(is_kanji(ch) for ch in orig):
-                kana = word.feature.kana
-                if kana:
-                    hiragana = jaconv.kata2hira(kana)
-                    result += [(orig, hiragana)]
-                else:
-                    result += [(orig,)]
+            kana = word.feature.kana
+            if any(is_kanji(ch) for ch in surface) and kana:
+                hiragana = jaconv.kata2hira(kana)
+                pairs = list(split_okurigana(surface, hiragana))
             else:
-                result += [(orig,)]
+                hiragana = None
+                pairs = (surface,)
+
+            token = JapaneseToken(surface=surface, reading=hiragana, furigana_pairs=pairs)
+            result.append(token)
 
         return result

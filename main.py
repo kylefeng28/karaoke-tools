@@ -9,7 +9,8 @@ from merge import merge_files
 parser = FugashiParser()
 def convert_and_print(text):
     converted = parser.convert(text)
-    print(converted)
+    for token in converted:
+        print(token)
 
 
 def read_txt_file(input_file):
