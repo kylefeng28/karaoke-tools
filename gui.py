@@ -19,7 +19,7 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from mpv import MpvIPC
-from timing import TimedSyllable, Line
+from timing import TimedSyllable, TimedWord, Line
 from cjk_utils import split_tokens
 
 def _fmt_time(sec: float) -> str:
@@ -34,8 +34,6 @@ def _fmt_speed(speed: float) -> str:
 
 
 CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save"
-
-USE_HTML = True
 
 _ASS_HEADER = """\
 [Script Info]
@@ -82,6 +80,7 @@ CUR_TOK_ACTIVE_FG = 'black'
 
 CUR_TOK_BG = '#455a64'
 CUR_TOK_FG = 'white'
+TOK_TIMED_ACTIVE_WORD_FG = '#34694e'
 TOK_TIMED_FG = '#4caf50'
 TOK_DEFAULT_FG = '#ccc'
 
@@ -95,7 +94,7 @@ class SyllableWidget(QWidget):
         self._layout.setSpacing(0)
         self._labels: list[QLabel] = []
 
-    def set_tokens(self, tokens: list[TimedSyllable], cur_tok: int, timing_active: bool):
+    def set_tokens(self, tokens: list[TimedSyllable | TimedWord], cur_tok: int, timing_active: bool):
         # clear old
         while self._layout.count():
             item = self._layout.takeAt(0)
@@ -103,55 +102,63 @@ class SyllableWidget(QWidget):
                 item.widget().deleteLater()
         self._labels.clear()
 
-        for idx, tok in enumerate(tokens):
+        syl_idx = 0
+        for tok in tokens:
             lbl = QLabel()
             lbl.setFont(QFont("sans-serif", 18))
-            if USE_HTML:
-                lbl.setTextFormat(Qt.TextFormat.RichText)
-                html, style = self.render_html(tok, idx, cur_tok, timing_active)
-                lbl.setText(html)
-                lbl.setStyleSheet(style)
-            else:
-                text, style = self.render_plaintext(tok)
-                lbl.setText(text)
-                lbl.setStyleSheet(style)
+            lbl.setTextFormat(Qt.TextFormat.RichText)
+            html, style = self.render_html(tok, syl_idx, cur_tok, timing_active)
+            lbl.setText(html)
+            lbl.setStyleSheet(style)
             self._layout.addWidget(lbl)
             self._labels.append(lbl)
+            syl_idx += len(tok.get_syllables())
 
         self._layout.addStretch()
 
-    def _syl_color(self, tok, idx, cur_tok, timing_active) -> (str, str):  # (bg, fg)
-        if idx == cur_tok and timing_active:
-            return (CUR_TOK_ACTIVE_BG, CUR_TOK_ACTIVE_FG)
-        elif idx == cur_tok:
-            return (CUR_TOK_BG, CUR_TOK_FG)
+    def _syl_style(self, tok, syl_idx, cur_tok, timing_active, word_active) -> str:
+        style = ''
+
+        if syl_idx == cur_tok:
+            style += 'text-decoration: underline; '
+            if timing_active:
+                fg = CUR_TOK_ACTIVE_FG
+            elif syl_idx == cur_tok:
+                fg = CUR_TOK_FG
+        elif word_active and tok.timed:
+            fg = TOK_TIMED_ACTIVE_WORD_FG
         elif tok.timed:
-            return (None, TOK_TIMED_FG)
+            fg = TOK_TIMED_FG
         else:
-            return (None, TOK_DEFAULT_FG)
+            fg = TOK_DEFAULT_FG
 
-    def render_plaintext(self, tok, idx, cur_tok, timing_active) -> (str, str):  # (text, style)
-        bg, fg = self._syl_color(tok, idx, cur_tok, timing_active)
-        style = "padding: 2px 4px;"
-        if bg:
-            style += f"background: {bg}; "
-        if fg:
-            style += f"color: {fg}; "
-        if idx == cur_tok:
-            style += "border-radius: 3px; font-weight: bold; "
+        style += f'color: {fg}'
+        return style
 
-        return (tok.preview(), style)
+    def _word_style(self, timing_active, word_active) -> str:
+        style = 'padding: 2px 4px; '
 
-    def render_html(self, tok, idx, cur_tok, timing_active) -> (str, str):  # (html, style)
-        bg, fg = self._syl_color(tok, idx, cur_tok, timing_active)
-        syl_style = f'color: {fg};'
-        span = f'<span style="{syl_style}">{tok.preview()}</span>'
-
-        style = f'padding: 2px 4px; background: {bg}; '
-        if idx == cur_tok:
+        bg = None
+        if word_active:
             style += "border-radius:3px; font-weight: bold; "
+            if timing_active:
+                bg = CUR_TOK_ACTIVE_BG
+            else:
+                bg = CUR_TOK_BG
 
-        html = '<div>' + span + '</div>'
+        style += f'background: {bg}'
+        return style
+
+    def render_html(self, tok, syl_start_idx, cur_tok, timing_active) -> (str, str):  # (html, style)
+        word_active = syl_start_idx <= cur_tok < syl_start_idx + len(tok.get_syllables())
+        style = self._word_style(timing_active, word_active)
+
+        spans = []
+        for i, syl in enumerate(tok.get_syllables()):
+            syl_style = self._syl_style(syl, syl_start_idx + i, cur_tok, timing_active, word_active)
+            spans.append(f'<span style="{syl_style}">{syl.preview()}</span>')
+
+        html = '<div>' + ''.join(spans) + '</div>'
         return (html, style)
 
 
@@ -256,11 +263,7 @@ class MainWindow(QMainWindow):
         self.syl_start = None
 
         if advance:
-            ln = self.lines[self.cur_line]
-            if self.cur_tok < len(ln.get_syllables())-1:
-                self.cur_tok += 1
-            elif self.cur_line < len(self.lines)-1:
-                self.cur_line += 1; self.cur_tok = 0
+            self.token_next() or self.line_next()
             self._start_syl()
 
     def _refresh(self):
@@ -268,9 +271,9 @@ class MainWindow(QMainWindow):
         above = [self.lines[i].preview() for i in range(max(0, self.cur_line-2), self.cur_line)]
         self.ctx_above.setText('\n'.join(above))
 
-        # syllable display
+        # word/syllable display
         ln = self.lines[self.cur_line]
-        self.syl_widget.set_tokens(ln.get_syllables(), self.cur_tok, self.syl_start is not None)
+        self.syl_widget.set_tokens(ln.tokens, self.cur_tok, self.syl_start is not None)
 
         # context below
         below = [self.lines[i].preview() for i in range(self.cur_line+1, min(len(self.lines), self.cur_line+4))]
@@ -337,10 +340,8 @@ class MainWindow(QMainWindow):
                 if self.syl_start is not None:
                     tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
                     self._end_syl(advance=False)
+                    self.token_next() or self.line_next()
                     self.status.showMessage(f"✓ {tok.preview()!r} ended, gap …")
-                ln = self.lines[self.cur_line]
-                if self.cur_tok < len(ln.get_syllables())-1: self.cur_tok += 1
-                elif self.cur_line < len(self.lines)-1: self.cur_line += 1; self.cur_tok = 0
                 self._refresh()
 
             # /      — redo current line
@@ -396,20 +397,24 @@ class MainWindow(QMainWindow):
     def token_prev(self):
         if self.cur_tok > 0:
             self.cur_tok -= 1
+            return True
 
     def token_next(self):
         if self.cur_tok < len(self.lines[self.cur_line].get_syllables())-1:
             self.cur_tok += 1
+            return True
 
     def line_prev(self):
         if self.cur_line > 0:
             self.cur_line -= 1
             self.cur_tok = 0
+            return True
 
     def line_next(self):
         if self.cur_line < len(self.lines)-1:
             self.cur_line += 1
             self.cur_tok = 0
+            return True
 
     def closeEvent(self, ev):
         if self.mpv:
@@ -446,6 +451,7 @@ def main():
     out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
 
     lines = load_lyrics(lyrics_file)
+
     if not lines:
         print(f"No lines found in {lyrics_file}"); sys.exit(1)
 
