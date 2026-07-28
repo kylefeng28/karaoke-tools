@@ -14,8 +14,10 @@ import os
 import sys
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QHBoxLayout, QLabel, QStatusBar)
-from PyQt6.QtCore import Qt, QTimer
+                             QHBoxLayout, QLabel, QStatusBar, QDialog,
+                             QPushButton, QFileDialog, QRadioButton,
+                             QButtonGroup, QGroupBox, QLineEdit)
+from PyQt6.QtCore import Qt, QTimer, QSettings
 from PyQt6.QtGui import QFont, QKeyEvent
 
 from mpv import MpvIPC
@@ -33,7 +35,7 @@ def _fmt_time(sec: float) -> str:
 def _fmt_speed(speed: float) -> str:
     return f"{speed:02}"
 
-
+TITLE = "Karaoke Syllable Timer"
 CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save"
 
 _ASS_HEADER = """\
@@ -84,6 +86,7 @@ CUR_TOK_FG = 'white'
 TOK_TIMED_ACTIVE_WORD_FG = '#34694e'
 TOK_TIMED_FG = '#4caf50'
 TOK_DEFAULT_FG = '#ccc'
+
 
 class SyllableWidget(QWidget):
     """Displays one line's syllable tokens with color-coded states."""
@@ -182,7 +185,7 @@ class MainWindow(QMainWindow):
         self.playing = False
         self.last_t = 0.0
 
-        self.setWindowTitle("Karaoke Syllable Timer")
+        self.setWindowTitle(TITLE)
         self.setMinimumSize(700, 400)
         self.setStyleSheet(f"background: {MAIN_BG}; color: {MAIN_FG};")
 
@@ -474,31 +477,171 @@ def tokenize_lyrics(raw_lines: list[str], tokenizer) -> list[Line]:
     return lines
 
 
+class LauncherDialog(QDialog):
+    _LYRICS_PATH = "launcher/lyrics_path"
+    _MEDIA_PATH = "launcher/media_path"
+    _TOKENIZER = "launcher/tokenizer"
+
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle(TITLE)
+        self.setMinimumWidth(500)
+        self.settings = QSettings("karaoke-tools", "karaoke-syncer")
+
+        layout = QVBoxLayout(self)
+
+        # Lyrics file picker
+        lyrics_group = QGroupBox("Lyrics file (required)")
+        lyrics_layout = QHBoxLayout(lyrics_group)
+        self.lyrics_path = QLineEdit()
+        self.lyrics_path.setPlaceholderText("Select a .txt lyrics file...")
+        self.lyrics_path.setReadOnly(True)
+        lyrics_btn = QPushButton("Browse...")
+        lyrics_btn.clicked.connect(self._browse_lyrics)
+        lyrics_layout.addWidget(self.lyrics_path)
+        lyrics_layout.addWidget(lyrics_btn)
+        layout.addWidget(lyrics_group)
+
+        # Media file picker
+        media_group = QGroupBox("Media file (optional)")
+        media_layout = QHBoxLayout(media_group)
+        self.media_path = QLineEdit()
+        self.media_path.setPlaceholderText("Select an audio/video file...")
+        self.media_path.setReadOnly(True)
+        media_btn = QPushButton("Browse...")
+        media_btn.clicked.connect(self._browse_media)
+        media_clear_btn = QPushButton("Clear")
+        media_clear_btn.clicked.connect(lambda: self.media_path.clear())
+        media_layout.addWidget(self.media_path)
+        media_layout.addWidget(media_btn)
+        media_layout.addWidget(media_clear_btn)
+        layout.addWidget(media_group)
+
+        # Tokenizer radio buttons
+        tok_group = QGroupBox("Tokenizer")
+        tok_layout = QVBoxLayout(tok_group)
+        self.tok_button_group = QButtonGroup(self)
+
+        tok_none = QRadioButton("None (generic)")
+        tok_mecab = QRadioButton("MeCab (Japanese, morphological analyzer)")
+        tok_kakasi = QRadioButton("Kakasi (Japanese, lightweight)")
+
+        tok_none.setChecked(True)
+        self.tok_button_group.addButton(tok_none, 0)
+        self.tok_button_group.addButton(tok_mecab, 1)
+        self.tok_button_group.addButton(tok_kakasi, 2)
+
+        tok_layout.addWidget(tok_none)
+        tok_layout.addWidget(tok_mecab)
+        tok_layout.addWidget(tok_kakasi)
+        layout.addWidget(tok_group)
+
+        # Launch button
+        self.launch_btn = QPushButton("Launch")
+        self.launch_btn.setDefault(True)
+        self.launch_btn.setMinimumHeight(40)
+        self.launch_btn.clicked.connect(self._launch)
+        layout.addWidget(self.launch_btn)
+
+        self.result = None
+
+        # Restore cached values
+        self._restore_settings()
+
+    def _restore_settings(self):
+        lyrics = self.settings.value(self._LYRICS_PATH, "")
+        media = self.settings.value(self._MEDIA_PATH, "")
+        tok_id = self.settings.value(self._TOKENIZER, 0, type=int)
+
+        if lyrics and os.path.isfile(lyrics):
+            self.lyrics_path.setText(lyrics)
+        if media and os.path.isfile(media):
+            self.media_path.setText(media)
+
+        btn = self.tok_button_group.button(tok_id)
+        if btn:
+            btn.setChecked(True)
+
+    def _save_settings(self):
+        self.settings.setValue(self._LYRICS_PATH, self.lyrics_path.text().strip())
+        self.settings.setValue(self._MEDIA_PATH, self.media_path.text().strip())
+        self.settings.setValue(self._TOKENIZER, self.tok_button_group.checkedId())
+
+    def _browse_lyrics(self):
+        start_dir = os.path.dirname(self.lyrics_path.text()) if self.lyrics_path.text() else ""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Lyrics File", start_dir,
+            "Text files (*.txt);;All files (*)")
+        if path:
+            self.lyrics_path.setText(path)
+
+    def _browse_media(self):
+        start_dir = os.path.dirname(self.media_path.text()) if self.media_path.text() else ""
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Select Media File", start_dir,
+            "Media files (*.mp4 *.mkv *.avi *.webm *.mp3 *.ogg *.flac *.wav);;All files (*)")
+        if path:
+            self.media_path.setText(path)
+
+    def _launch(self):
+        lyrics = self.lyrics_path.text().strip()
+        if not lyrics:
+            self.lyrics_path.setStyleSheet("border: 2px solid red;")
+            return
+
+        tok_id = self.tok_button_group.checkedId()
+        tokenize = {0: None, 1: 'mecab', 2: 'kakasi'}.get(tok_id)
+
+        self._save_settings()
+
+        self.result = {
+            'lyrics': lyrics,
+            'media': self.media_path.text().strip() or None,
+            'tokenize': tokenize,
+        }
+        self.accept()
+
+
 def main():
-    import argparse
-    parser = argparse.ArgumentParser(description='Karaoke syllable timer')
-    parser.add_argument('lyrics', help='Lyrics file (.txt)')
-    parser.add_argument('media', nargs='?', help='Audio/video file for mpv')
-    parser.add_argument('--tokenize', choices=['jp', 'mecab', 'kakasi', 'pykakasi'], default=None,
-                        help='(None)=no special parsing. split by CJK characters and Latin alphabet words, jp=use MeCab to generate furigana/readings for Japanese text')
-    parser.add_argument('--out', '-o', default=None,
-                        help='path to export generated .ass file')
+    app = QApplication(sys.argv)
 
-    args = parser.parse_args()
+    # If no CLI arguments provided, show the launcher dialog
+    if len(sys.argv) <= 1:
+        dlg = LauncherDialog()
+        if dlg.exec() != QDialog.DialogCode.Accepted or dlg.result is None:
+            sys.exit(0)
 
-    lyrics_file = args.lyrics
-    media_file = args.media
-    out_path = args.out
-
-    if not out_path:
+        lyrics_file = dlg.result['lyrics']
+        media_file = dlg.result['media']
+        tokenize = dlg.result['tokenize']
         out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
+    else:
+        import argparse
+
+        parser = argparse.ArgumentParser(description='Karaoke syllable timer')
+        parser.add_argument('lyrics', help='Lyrics file (.txt)')
+        parser.add_argument('media', nargs='?', help='Audio/video file for mpv')
+        parser.add_argument('--tokenize', choices=['jp', 'mecab', 'kakasi', 'pykakasi'], default=None,
+                            help='(None)=no special parsing. split by CJK characters and Latin alphabet words, jp=use MeCab to generate furigana/readings for Japanese text')
+        parser.add_argument('--out', '-o', default=None,
+                            help='path to export generated .ass file')
+
+        args = parser.parse_args()
+
+        lyrics_file = args.lyrics
+        media_file = args.media
+        tokenize = args.tokenize
+        out_path = args.out
+
+        if not out_path:
+            out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
 
     raw_lines = load_raw_lyrics(lyrics_file)
 
-    if args.tokenize == 'jp' or args.tokenize == 'mecab':
+    if tokenize in ('jp', 'mecab'):
         print('Tokenizing with MeCab')
         tokenizer = japanese_tokenizer(FugashiParser())
-    elif args.tokenize == 'kakasi' or args.tokenize == 'pykakasi':
+    elif tokenize in ('kakasi', 'pykakasi'):
         print('Tokenizing with pykakasi')
         tokenizer = japanese_tokenizer(PykakasiParser())
     else:
@@ -513,7 +656,6 @@ def main():
 
     mpv = MpvIPC(media_file) if media_file else None
 
-    app = QApplication(sys.argv)
     win = MainWindow(lines, mpv, out_path)
     win.show()
     sys.exit(app.exec())
