@@ -1,0 +1,42 @@
+name: Build Executable
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # PyInstaller builds platform-specific binaries, so use a matrix for cross-compilation
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up uv
+        # Official Action provided by Astral to install and cache uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Build with PyInstaller
+        run: uv run pyinstaller main.spec
+
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: karaoke-syncer-${{ matrix.os }}
+          path: dist/karaoke-syncer
