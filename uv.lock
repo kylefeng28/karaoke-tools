@@ -95,11 +95,13 @@ dependencies = [
     { name = "pyonfx" },
     { name = "pyqt6" },
     { name = "pysubs2" },
+    { name = "python-mpv-jsonipc" },
     { name = "unidic-lite" },
 ]
 
 [package.dev-dependencies]
 dev = [
+    { name = "patch-package-py" },
     { name = "pyinstaller" },
     { name = "pytest" },
 ]
@@ -112,11 +114,13 @@ requires-dist = [
     { name = "pyonfx", specifier = ">=0.11.0" },
     { name = "pyqt6", specifier = ">=6.11.0" },
     { name = "pysubs2", specifier = ">=1.8.1" },
+    { name = "python-mpv-jsonipc", specifier = ">=1.2.3" },
     { name = "unidic-lite", specifier = ">=1.0.8" },
 ]
 
 [package.metadata.requires-dev]
 dev = [
+    { name = "patch-package-py", specifier = ">=0.2.1" },
     { name = "pyinstaller", specifier = ">=6.21.0" },
     { name = "pytest", specifier = ">=9.1.1" },
 ]
@@ -180,6 +184,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d7/f1/e7a6dd94a8d4a5626c03e4e99c87f241ba9e350cd9e6d75123f992427270/packaging-26.2.tar.gz", hash = "sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661", size = 228134, upload-time = "2026-04-24T20:15:23.917Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl", hash = "sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e", size = 100195, upload-time = "2026-04-24T20:15:22.081Z" },
+]
+
+[[package]]
+name = "patch-package-py"
+version = "0.2.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/6c/1a15f563b8506b5fe4edbcd70836d4c481704518aeb5bc5c79602656083e/patch_package_py-0.2.1.tar.gz", hash = "sha256:a5addd8c4c897bf7795496f3148d4470f84a4abbebdcab06cea2213a4303de67", size = 6576, upload-time = "2026-05-31T14:30:53.394Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/87/6c/8cd23d431ee1a3ccbfa2ac9ced565c9df1b91fe51119b1b008e6588131ed/patch_package_py-0.2.1-py3-none-any.whl", hash = "sha256:135054c5eb112377c67adcbd7e4502007c24a94d2cd98b5a6fa119fe60ae693e", size = 7733, upload-time = "2026-05-31T14:30:52.216Z" },
 ]
 
 [[package]]
@@ -441,6 +454,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
+]
+
+[[package]]
+name = "python-mpv-jsonipc"
+version = "1.2.3"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/86/79/7d7daa7fa13b8ebc087fb5b1175cf89c7b1c2a2a0ebd81b4e88327ad7628/python_mpv_jsonipc-1.2.3.tar.gz", hash = "sha256:3bc6a4618ccb3335e7a455fe8cf396260c7ec91d5e5f59c682fce844204da2a2", size = 11748, upload-time = "2026-07-25T17:09:00.871Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2e/41/d8ca63d8403309b18b78996accba53aa59f21416ac3636fac94eeebf931a/python_mpv_jsonipc-1.2.3-py3-none-any.whl", hash = "sha256:110cd83a57128b75c53c0fe9008fd74a2b0c67436e41b5e5fa2070a36fac3b07", size = 12325, upload-time = "2026-07-25T17:08:59.991Z" },
 ]
 
 [[package]]
