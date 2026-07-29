@@ -439,7 +439,7 @@ class MainWindow(QMainWindow):
 
 def load_raw_lyrics(path: str) -> list[str]:
     line = []
-    with open(path) as f:
+    with open(path, encoding='utf-8') as f:
         for raw in f:
             raw = raw.strip()
             if raw:
