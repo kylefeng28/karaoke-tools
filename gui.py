@@ -472,8 +472,13 @@ def japanese_tokenizer(parser):
 
 def tokenize_lyrics(raw_lines: list[str], tokenizer) -> list[Line]:
     lines = []
+    i = 0
     for raw in raw_lines:
-        lines.append(Line(start=0.0, end=0.0, tokens=tokenizer(raw)))
+        try:
+            lines.append(Line(start=0.0, end=0.0, tokens=tokenizer(raw)))
+        except Exception as e:
+            raise Exception(f'Error tokenizing line {i}: {raw}') from e
+        i += 1
     return lines
 
 

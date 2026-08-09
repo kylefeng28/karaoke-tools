@@ -27,7 +27,7 @@ class JapaneseToken:
 # \u3400-\u4DBF   # CJK Extension A
 # \u20000-\u2A6DF # CJK Extension B
 def is_kanji(ch) -> bool:
-    return unicodedata.name(ch).startswith('CJK UNIFIED IDEOGRAPH')
+    return ch == '々' or unicodedata.name(ch).startswith('CJK UNIFIED IDEOGRAPH')
 
 
 # \u3040-\u309F
