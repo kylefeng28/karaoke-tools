@@ -542,18 +542,16 @@ class LauncherDialog(QDialog):
         tok_layout = QVBoxLayout(tok_group)
         self.tok_button_group = QButtonGroup(self)
 
-        tok_none = QRadioButton("None (generic)")
-        tok_mecab = QRadioButton("MeCab (Japanese, morphological analyzer)")
-        tok_kakasi = QRadioButton("Kakasi (Japanese, lightweight)")
+        def add_tokenizer_option(title, id):
+            radio = QRadioButton(title)
+            self.tok_button_group.addButton(radio, id)
+            tok_layout.addWidget(radio)
 
-        tok_none.setChecked(True)
-        self.tok_button_group.addButton(tok_none, 0)
-        self.tok_button_group.addButton(tok_mecab, 1)
-        self.tok_button_group.addButton(tok_kakasi, 2)
+        add_tokenizer_option("None (generic)", 0)
+        add_tokenizer_option("MeCab (Japanese, morphological analyzer)", 1)
+        add_tokenizer_option("Kakasi (Japanese, lightweight)", 2)
+        add_tokenizer_option("Japanese romaji", 3)
 
-        tok_layout.addWidget(tok_none)
-        tok_layout.addWidget(tok_mecab)
-        tok_layout.addWidget(tok_kakasi)
         layout.addWidget(tok_group)
 
         # Launch button
@@ -610,7 +608,7 @@ class LauncherDialog(QDialog):
             return
 
         tok_id = self.tok_button_group.checkedId()
-        tokenize = {0: None, 1: 'mecab', 2: 'kakasi'}.get(tok_id)
+        tokenize = {0: None, 1: 'mecab', 2: 'kakasi', 3: 'romaji'}.get(tok_id)
 
         self._save_settings()
 
