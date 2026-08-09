@@ -24,6 +24,8 @@ from mpv import MpvIPC
 from timing import TimedSyllable, TimedWord, Line
 from nlp import FugashiParser, PykakasiParser
 from cjk_utils import split_tokens, split_morae
+from romaji_utils import split_romaji_morae
+
 
 def _fmt_time(sec: float) -> str:
     if sec is None:
@@ -470,6 +472,19 @@ def japanese_tokenizer(parser):
     return tokenizer
 
 
+def romaji_tokenizer():
+    def tokenizer(text: str) -> list[TimedWord]:
+        tokens = []
+        for word in split_tokens(text):
+            morae = split_romaji_morae(word)
+            syllables = [TimedSyllable(m, mode='start_end') for m in morae]
+            tokens.append(TimedWord(text=word, syllables=syllables))
+
+        return tokens
+
+    return tokenizer
+
+
 def tokenize_lyrics(raw_lines: list[str], tokenizer) -> list[Line]:
     lines = []
     i = 0
@@ -626,7 +641,7 @@ def main():
         parser = argparse.ArgumentParser(description='Karaoke syllable timer')
         parser.add_argument('lyrics', help='Lyrics file (.txt)')
         parser.add_argument('media', nargs='?', help='Audio/video file for mpv')
-        parser.add_argument('--tokenize', choices=['jp', 'mecab', 'kakasi', 'pykakasi'], default=None,
+        parser.add_argument('--tokenize', choices=['none', 'jp', 'mecab', 'kakasi', 'pykakasi', 'romaji'], default=None,
                             help='(None)=no special parsing. split by CJK characters and Latin alphabet words, jp=use MeCab to generate furigana/readings for Japanese text')
         parser.add_argument('--out', '-o', default=None,
                             help='path to export generated .ass file')
@@ -649,6 +664,9 @@ def main():
     elif tokenize in ('kakasi', 'pykakasi'):
         print('Tokenizing with pykakasi')
         tokenizer = japanese_tokenizer(PykakasiParser())
+    elif tokenize == 'romaji':
+        print('Tokenizing romaji')
+        tokenizer = romaji_tokenizer()
     else:
         print('Using generic tokenizer')
         tokenizer = generic_tokenizer

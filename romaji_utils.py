@@ -68,3 +68,21 @@ def is_potential_romaji(word: str) -> tuple[bool, int|str]:
         mora_count += 1
 
     return True, mora_count
+
+
+def split_romaji_morae(word: str) -> list[str]:
+    word = word.strip().lower()
+    if not word:
+        return []
+
+    morae = []
+
+    pos = 0
+    while pos < len(word):
+        m = MORA_RE.match(word, pos)
+        if not m:
+            return []
+        morae.append(word[pos:m.end()])
+        pos = m.end()
+
+    return morae
