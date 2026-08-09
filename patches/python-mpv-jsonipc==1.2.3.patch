@@ -1,40 +1,38 @@
-diff --git a/python_mpv_jsonipc.py b/python_mpv_jsonipc.py
-index 19a9c41..e955dd5 100644
---- a/python_mpv_jsonipc.py
-+++ b/python_mpv_jsonipc.py
-@@ -202,7 +202,7 @@ class MPVProcess:
+--- python_mpv_jsonipc.py
++++ python_mpv_jsonipc.py
+@@ -202,7 +202,7 @@
      """
      Manages an MPV process, ensuring the socket or pipe is available. (Internal)
      """
--    def __init__(self, ipc_socket, mpv_location=None, *args, **kwargs):
+-    def __init__(self, ipc_socket, mpv_location=None, **kwargs):
 +    def __init__(self, ipc_socket, mpv_location=None, mpv_args=[], **kwargs):
          """
          Create and start the MPV process. Will block until socket/pipe is available.
  
-@@ -227,7 +227,7 @@ class MPVProcess:
+@@ -227,7 +227,7 @@
  
          log.debug("Using IPC socket {0} for MPV.".format(ipc_socket))
          self.ipc_socket = ipc_socket
 -        args = [mpv_location]
-+        args = [mpv_location, *mpv_args]
++        args = [mpv_location] + mpv_args
          self._set_default(kwargs, "idle", True)
          self._set_default(kwargs, "input_ipc_server", ipc_socket_name)
          self._set_default(kwargs, "input_terminal", False)
-@@ -409,7 +409,7 @@ class MPV:
+@@ -409,7 +409,7 @@
      list is used. Not all commands may actually work when this fallback is used.
      """
      def __init__(self, start_mpv=True, ipc_socket=None, mpv_location=None,
--                 log_handler=None, loglevel=None, quit_callback=None, start_retries=5, start_retry_delay_ms=1000, *args, **kwargs):
+-                 log_handler=None, loglevel=None, quit_callback=None, start_retries=5, start_retry_delay_ms=1000, **kwargs):
 +                 log_handler=None, loglevel=None, quit_callback=None, start_retries=5, start_retry_delay_ms=1000, mpv_args=[], **kwargs):
          """
          Create the interface to MPV and process instance.
  
-@@ -442,7 +442,7 @@ class MPV:
+@@ -442,7 +442,7 @@
              # Attempt to start MPV multiple times.
              for i in range(start_retries):
                  try:
--                    self.mpv_process = MPVProcess(ipc_socket, mpv_location, *args, **kwargs)
-+                    self.mpv_process = MPVProcess(ipc_socket, mpv_location, mpv_args)
+-                    self.mpv_process = MPVProcess(ipc_socket, mpv_location, **kwargs)
++                    self.mpv_process = MPVProcess(ipc_socket, mpv_location, mpv_args, **kwargs)
                      break
                  except MPVError:
                      log.warning("MPV start failed.", exc_info=1)
