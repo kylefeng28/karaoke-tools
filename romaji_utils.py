@@ -43,7 +43,7 @@ MORA_PATTERN = r"""
 )
 """
 
-MORA_RE = re.compile(MORA_PATTERN, re.VERBOSE | re.IGNORECASE)
+MORA_RE = re.compile(MORA_PATTERN, re.VERBOSE)
 
 
 def is_potential_romaji(word: str) -> tuple[bool, int|str]:
@@ -54,7 +54,7 @@ def is_potential_romaji(word: str) -> tuple[bool, int|str]:
     True  -> the word *could* be romaji (doesn't rule out English homophones like 'hone').
     False -> the word *cannot* be romaji (violates Japanese syllable structure).
     """
-    word = word.strip().lower()
+    word = word.strip()
     if not word:
         return False, 0
 
@@ -71,7 +71,7 @@ def is_potential_romaji(word: str) -> tuple[bool, int|str]:
 
 
 def split_romaji_morae(word: str) -> list[str]:
-    word = word.strip().lower()
+    word = word.strip()
     if not word:
         return []
 

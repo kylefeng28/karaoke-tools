@@ -23,7 +23,7 @@ from PyQt6.QtGui import QFont, QKeyEvent
 from mpv import MpvIPC
 from timing import TimedSyllable, TimedWord, Line
 from nlp import FugashiParser, PykakasiParser
-from cjk_utils import split_tokens, split_morae
+from cjk_utils import split_tokens, split_morae, is_cjk
 from romaji_utils import split_romaji_morae
 
 
@@ -462,9 +462,14 @@ def japanese_tokenizer(parser):
         jp_tokens = parser.convert(text)
         for token in jp_tokens:
             surface = token.surface
-            hiragana = token.reading or token.surface
-            morae = split_morae(hiragana)
-            syllables = [TimedSyllable(m, mode='start_end') for m in morae]
+            if all(is_cjk(ch) for ch in surface):
+                hiragana = token.reading or token.surface
+                morae = split_morae(hiragana)
+                syllables = [TimedSyllable(m, mode='start_end') for m in morae]
+            elif morae := split_romaji_morae(surface):
+                syllables = [TimedSyllable(m, mode='start_end') for m in morae]
+            else:
+                syllables = [TimedSyllable(token.surface, mode='start_end')]
             tokens.append(TimedWord(text=surface, syllables=syllables))
 
         return tokens
@@ -476,8 +481,10 @@ def romaji_tokenizer():
     def tokenizer(text: str) -> list[TimedWord]:
         tokens = []
         for word in split_tokens(text):
-            morae = split_romaji_morae(word)
-            syllables = [TimedSyllable(m, mode='start_end') for m in morae]
+            if morae := split_romaji_morae(word):
+                syllables = [TimedSyllable(m, mode='start_end') for m in morae]
+            else:
+                syllables = [TimedSyllable(word, mode='start_end')]
             tokens.append(TimedWord(text=word, syllables=syllables))
 
         return tokens
