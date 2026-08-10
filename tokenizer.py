@@ -1,5 +1,5 @@
 from timing import TimedSyllable, TimedWord, Line
-from cjk_utils import split_tokens, split_morae, is_cjk
+from cjk_utils import split_tokens, split_morae, is_cjk, convert_to_romaji
 from romaji_utils import split_romaji_morae
 
 
@@ -9,7 +9,7 @@ def generic_tokenizer(text):
     return [TimedSyllable(tok, mode='start_end') for tok in tokens]
 
 
-def japanese_tokenizer(parser):
+def japanese_tokenizer(parser, convert_romaji=False):
     def tokenizer(text: str) -> list[TimedWord]:
         """Japanese text tokenizer. Processes text using MeCab/kakasi and converts them into mora-based TimedSyllables"""
         tokens = []
@@ -25,6 +25,24 @@ def japanese_tokenizer(parser):
                 syllables = [TimedSyllable(token.surface, mode='start_end')]
 
             tokens.append(TimedWord(text=surface, syllables=syllables))
+
+        if convert_romaji:
+            for word in tokens:
+                n_syllables = len(word.syllables)
+                for i in range(n_syllables-1, -1, -1):
+                    syllable = word.syllables[i]
+                    syllable.text = convert_to_romaji(syllable.text, n_syllables == 1)
+                    # Handle sokuon/small tsu (っ): jaconv converts it to 'xtsu', but we need to
+                    # replace it with the first character of the following syllable
+                    # e.g. あっさり -> axtsu-sari -> assari, 真っ白 まっしろ -> maxtsu-shiro -> masshiro
+                    if syllable.text == 'xtsu':
+                        if i < n_syllables-1:
+                            replacer = word.syllables[i+1].text[0]
+                        else:
+                            replacer = "'"
+                        syllable.text = syllable.text.replace('xtsu', replacer)
+
+                word.text = ''.join([syl.text for syl in word.syllables])
 
         return tokens
 

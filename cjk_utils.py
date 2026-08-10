@@ -112,8 +112,7 @@ def split_tokens(text: str) -> list[str]:
 def join_tokens(tokens: list[str]) -> str:
     """
     Join tokens directly for CJK characters (no space) and with spaces separators for Latin characters.
-    For mixed text, join with no space since the
-    In other words, 
+    For mixed CJK/Latin text, join with no space.
     """
     if not tokens:
         return ''
@@ -129,6 +128,7 @@ def join_tokens(tokens: list[str]) -> str:
         prev_token = token
 
     return result
+
 
 def split_okurigana(text, hiragana):
     """ 送り仮名 processing
@@ -176,9 +176,20 @@ def convert_to_hiragana(s: str, is_whole_word):
     if s == "wa" and is_whole_word:
         return "は"
     elif s == "o" and is_whole_word:
-        return "お"
+        return "を"
 
     return jaconv.alphabet2kana(s)
+
+
+def convert_to_romaji(s: str, is_whole_word):
+    # は and を should be "wa" and "o" instead of "ha" and "wo" when they are standalone particles
+    if s == "は" and is_whole_word:
+        return "wa"
+    elif s == "を" and is_whole_word:
+        return "o"
+
+    s = jaconv.kata2hira(s)
+    return jaconv.kana2alphabet(s)
 
 
 def split_morae(hiragana: str) -> list[str]:

@@ -15,7 +15,7 @@ import sys
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QStatusBar, QDialog,
-                             QPushButton, QFileDialog, QRadioButton,
+                             QPushButton, QFileDialog, QRadioButton, QCheckBox,
                              QButtonGroup, QGroupBox, QLineEdit)
 from PyQt6.QtCore import Qt, QTimer, QSettings
 from PyQt6.QtGui import QFont, QKeyEvent
@@ -452,6 +452,7 @@ class LauncherDialog(QDialog):
     _LYRICS_PATH = "launcher/lyrics_path"
     _MEDIA_PATH = "launcher/media_path"
     _TOKENIZER = "launcher/tokenizer"
+    _CONVERT_ROMAJI = "launcher/convert_romaji"
 
     def __init__(self):
         super().__init__()
@@ -505,6 +506,15 @@ class LauncherDialog(QDialog):
 
         layout.addWidget(tok_group)
 
+        # Options
+        options_group = QGroupBox("Options")
+        options_layout = QVBoxLayout(options_group)
+
+        self.romaji_checkbox = QCheckBox("Convert to Romaji")
+        options_layout.addWidget(self.romaji_checkbox)
+
+        layout.addWidget(options_group)
+
         # Launch button
         self.launch_btn = QPushButton("Launch")
         self.launch_btn.setDefault(True)
@@ -521,6 +531,7 @@ class LauncherDialog(QDialog):
         lyrics = self.settings.value(self._LYRICS_PATH, "")
         media = self.settings.value(self._MEDIA_PATH, "")
         tok_id = self.settings.value(self._TOKENIZER, 0, type=int)
+        convert_romaji = self.settings.value(self._CONVERT_ROMAJI, False)
 
         if lyrics and os.path.isfile(lyrics):
             self.lyrics_path.setText(lyrics)
@@ -531,10 +542,13 @@ class LauncherDialog(QDialog):
         if btn:
             btn.setChecked(True)
 
+        self.romaji_checkbox.setChecked(convert_romaji)
+
     def _save_settings(self):
         self.settings.setValue(self._LYRICS_PATH, self.lyrics_path.text().strip())
         self.settings.setValue(self._MEDIA_PATH, self.media_path.text().strip())
         self.settings.setValue(self._TOKENIZER, self.tok_button_group.checkedId())
+        self.settings.setValue(self._CONVERT_ROMAJI, self.romaji_checkbox.isChecked())
 
     def _browse_lyrics(self):
         start_dir = os.path.dirname(self.lyrics_path.text()) if self.lyrics_path.text() else ""
@@ -560,6 +574,7 @@ class LauncherDialog(QDialog):
 
         tok_id = self.tok_button_group.checkedId()
         tokenize = {0: None, 1: 'mecab', 2: 'kakasi', 3: 'romaji'}.get(tok_id)
+        convert_romaji = self.romaji_checkbox.isChecked()
 
         self._save_settings()
 
@@ -567,6 +582,7 @@ class LauncherDialog(QDialog):
             'lyrics': lyrics,
             'media': self.media_path.text().strip() or None,
             'tokenize': tokenize,
+            'convert_romaji': convert_romaji,
         }
         self.accept()
 
@@ -584,6 +600,8 @@ def main():
         media_file = dlg.result['media']
         tokenize = dlg.result['tokenize']
         out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
+        convert_romaji = dlg.result['convert_romaji']
+
     else:
         import argparse
 
@@ -592,6 +610,8 @@ def main():
         parser.add_argument('media', nargs='?', help='Audio/video file for mpv')
         parser.add_argument('--tokenize', choices=['none', 'jp', 'mecab', 'kakasi', 'pykakasi', 'romaji'], default=None,
                             help='(None)=no special parsing. split by CJK characters and Latin alphabet words, jp=use MeCab to generate furigana/readings for Japanese text')
+        parser.add_argument('--convert-romaji', '-r', action='store_true',
+                            help='convert romaji (best if used with --tokenize mecab')
         parser.add_argument('--out', '-o', default=None,
                             help='path to export generated .ass file')
 
@@ -601,6 +621,7 @@ def main():
         media_file = args.media
         tokenize = args.tokenize
         out_path = args.out
+        convert_romaji = args.convert_romaji
 
         if not out_path:
             out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
@@ -608,11 +629,11 @@ def main():
     raw_lines = load_raw_lyrics(lyrics_file)
 
     if tokenize in ('jp', 'mecab'):
-        print('Tokenizing with MeCab')
-        tokenizer = japanese_tokenizer(FugashiParser())
+        print('Tokenizing with MeCab' + (' and converting to romaji' if convert_romaji else ''))
+        tokenizer = japanese_tokenizer(FugashiParser(), convert_romaji)
     elif tokenize in ('kakasi', 'pykakasi'):
-        print('Tokenizing with pykakasi')
-        tokenizer = japanese_tokenizer(PykakasiParser())
+        print('Tokenizing with pykakasi' + (' and converting to romaji' if convert_romaji else ''))
+        tokenizer = japanese_tokenizer(PykakasiParser(), convert_romaji)
     elif tokenize == 'romaji':
         print('Tokenizing romaji')
         tokenizer = romaji_tokenizer
