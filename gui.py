@@ -61,16 +61,22 @@ def export_ass(lines: list[Line], out_path: str):
         f.write(_ASS_HEADER)
         for ln in lines:
             text, last = '', ln.get_start()
-            for tok in ln.get_syllables():
-                if tok.timed:
-                    gap = tok.start - last
-                    extra = 0.0
-                    if gap > 0.005:
-                        text += '{\\kf%d}' % round(gap * 100)
-                    text += '{\\kf%d}%s' % (round((tok.end - tok.start + extra) * 100), tok.preview())
-                    last = tok.end
-                else:
-                    text += tok.preview()
+            for tok in ln.tokens:
+                for syl in tok.get_syllables():
+                    if syl.timed:
+                        gap = syl.start - last
+                        extra = 0.0
+                        if gap > 0.005:
+                            text += '{\\kf%d}' % round(gap * 100)
+                        text += '{\\kf%d}%s' % (round((syl.end - syl.start + extra) * 100), syl.preview())
+                        last = syl.end
+                    else:
+                        text += syl.preview()
+
+                # Add space between words
+                if tok.get_type() == 'word':
+                    text += ' '
+
             f.write(f"Dialogue: 0,{_fmt_time(ln.get_start())},{_fmt_time(ln.get_end())},"
                     f"Default,,0,0,0,karaoke,{text}\n")
 
