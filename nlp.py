@@ -1,10 +1,11 @@
+import pykakasi
 import fugashi
 import ipadic
 import jaconv
 from cjk_utils import is_kanji, split_okurigana, JapaneseToken
 
+
 # Pykakasi is simpler and faster, based on dictionary lookups: https://codeberg.org/miurahr/pykakasi
-import pykakasi
 class PykakasiParser:
     def convert(self, text):
         kks = pykakasi.kakasi()
@@ -33,11 +34,13 @@ class PykakasiParser:
 # Uses https://github.com/polm/fugashi which is a wrapper around MeCab
 # Based on this code which uses mecab-python3: https://github.com/MikimotoH/furigana/blob/master/furigana/furigana.py
 
+
 IpadicFeatures = fugashi.create_feature_wrapper(
     'IpadicFeatures',
     'pos1 pos2 pos3 pos4 cType cForm lemma kana pron'.split(),
 )
 tagger = fugashi.GenericTagger(ipadic.MECAB_ARGS, wrapper=IpadicFeatures)
+
 
 class FugashiParser:
     def convert(self, text):
@@ -47,7 +50,14 @@ class FugashiParser:
             if not surface:
                 continue
 
-            kana = word.feature.kana
+            # Attach endings like た, ない, たい, て to previous token
+            if (word.feature.pos1 == '助動詞') or (word.feature.pos1 == '助詞' and word.feature.pos2 == '接続助詞'):
+                prev = result.pop()
+                surface = prev.surface + surface
+                kana = (prev.reading or '') + word.feature.kana
+            else:
+                kana = word.feature.kana
+
             if surface.isspace():
                 continue
             elif any(is_kanji(ch) for ch in surface) and kana:
