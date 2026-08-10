@@ -4,7 +4,7 @@ class MpvIPC:
     SPEED_MIN, SPEED_MAX, SPEED_STEP = 0.5, 2.0, 0.25
 
     def __init__(self, media: str):
-        self.mpv = MPV(mpv_args=['--no-video', '--pause'])
+        self.mpv = MPV(video='no', pause='yes')
         self.mpv.loadfile(media)
         self.speed = 1.0
 
