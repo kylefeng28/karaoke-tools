@@ -30,7 +30,10 @@ class TimedSyllable(Token):
         return cls(text, mode='duration', duration=duration)
 
     def __str__(self):
-        return f"{{{self.text}, {self.duration}}}"
+        if self.mode == 'start_end':
+            return f"{{{self.text}, {self.start}:{self.end}}}"
+        else:
+            return f"{{{self.text}, {self.duration}}}"
 
     def preview(self):
         return self.text

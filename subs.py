@@ -1,13 +1,16 @@
 import re
+
 import pysubs2
+from pysubs2 import SSAFile, SSAEvent, make_time
+
 from cjk_utils import convert_to_hiragana
 from timing import TimedWord, TimedSyllable, Line
 from utils import _fmt_time, _fmt_speed
 
 # Matches both \k and \kf timing tags (with optional space before the number); group 1 = timing, group 2 = syllable text
-K_TOKEN_RE = re.compile(r'\{\\kf? ?(\d+)\}([^{]*)')
+K_TOKEN_RE = re.compile(r'\{\\kf? ?(\d+)\}([^{]*)')  # } to make vim indent formatting happy from unmatched bracket in regex
 
-_ASS_HEADER = """\
+_ASS_TEMPLATE = """\
 [Script Info]
 ScriptType: v4.00+
 WrapStyle: 0
@@ -73,7 +76,7 @@ def convert_hiragana(word: TimedWord):
         syl.text = converted
 
 
-def read_ass_file(input_file) -> Line:
+def read_ass_file(input_file) -> list[Line]:
     sub_lines = pysubs2.load(input_file)
 
     lines = []
@@ -87,26 +90,46 @@ def read_ass_file(input_file) -> Line:
     return lines
 
 
-def export_ass(lines: list[Line], out_path: str):
-    with open(out_path, 'w', encoding='utf-8') as f:
-        f.write(_ASS_HEADER)
-        for ln in lines:
-            text, last = '', ln.get_start()
-            for tok in ln.tokens:
-                for syl in tok.get_syllables():
-                    if syl.timed:
-                        gap = syl.start - last
-                        extra = 0.0
-                        if gap > 0.005:
-                            text += '{\\kf%d}' % round(gap * 100)
-                        text += '{\\kf%d}%s' % (round((syl.end - syl.start + extra) * 100), syl.preview())
-                        last = syl.end
-                    else:
-                        text += syl.preview()
+def format_k_syllable(s: int, text: str) -> str:
+    # Return : {\\kN}text  where N is duration in centiseconds.
+    return '{\\k%d}%s' % (round(s * 100), text)
 
-                # Add space between words
-                if tok.get_type() == 'word':
-                    text += ' '
 
-            f.write(f"Dialogue: 0,{_fmt_time(ln.get_start())},{_fmt_time(ln.get_end())},"
-                    f"Default,,0,0,0,karaoke,{text}\n")
+def format_line(line: Line) -> str:
+    text, last = '', line.get_start()
+    for i, tok in enumerate(line.tokens):
+        for syl in tok.get_syllables():
+            if syl.timed:
+                gap = syl.start - last
+                extra = 0.0
+                if gap > 0.005:
+                    text += format_k_syllable(s=gap, text='')
+                text += format_k_syllable(s=syl.end - syl.start + extra, text=syl.preview())
+                last = syl.end
+            else:
+                text += syl.preview()
+
+        # Add space between words
+        if tok.get_type() == 'word' and i < len(line.tokens) - 1:
+            text += ' '
+
+    return text
+
+
+def to_ssa_file(lines: list[Line]) -> SSAFile:
+    subs = pysubs2.SSAFile.from_string(_ASS_TEMPLATE)
+    for line in lines:
+        text = format_line(line)
+        event = SSAEvent(start=make_time(s=line.get_start() or 0), end=make_time(s=line.get_end() or 0),
+                         style="Default",
+                         effect="karaoke",
+                         text=text)
+        subs.append(event)
+
+    return subs
+
+
+def export_ass(lines: list[Line], out_path: str) -> str:
+    subs = to_ssa_file(lines)
+    subs.save(out_path)
+    return out_path
