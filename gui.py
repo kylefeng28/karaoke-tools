@@ -24,61 +24,12 @@ from mpv import MpvIPC
 from timing import TimedSyllable, TimedWord, Line
 from nlp import FugashiParser, PykakasiParser
 from tokenizer import japanese_tokenizer, romaji_tokenizer, generic_tokenizer, tokenize_lyrics
+from utils import _fmt_time, _fmt_speed
+from subs import export_ass
 
-
-def _fmt_time(sec: float) -> str:
-    if sec is None:
-        sec = 0.0
-    cs = round(max(0.0, sec) * 100)
-    h, r = divmod(cs, 360000); mn, r = divmod(r, 6000); sc, cs = divmod(r, 100)
-    return f"{h}:{mn:02}:{sc:02}.{cs:02}"
-
-def _fmt_speed(speed: float) -> str:
-    return f"{speed:02}"
 
 TITLE = "Karaoke Syllable Timer"
 CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save"
-
-_ASS_HEADER = """\
-[Script Info]
-ScriptType: v4.00+
-WrapStyle: 0
-ScaledBorderAndShadow: yes
-PlayResX: 1920
-PlayResY: 1080
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,80,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,3,0,2,10,10,10,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
-
-
-def export_ass(lines: list[Line], out_path: str):
-    with open(out_path, 'w', encoding='utf-8') as f:
-        f.write(_ASS_HEADER)
-        for ln in lines:
-            text, last = '', ln.get_start()
-            for tok in ln.tokens:
-                for syl in tok.get_syllables():
-                    if syl.timed:
-                        gap = syl.start - last
-                        extra = 0.0
-                        if gap > 0.005:
-                            text += '{\\kf%d}' % round(gap * 100)
-                        text += '{\\kf%d}%s' % (round((syl.end - syl.start + extra) * 100), syl.preview())
-                        last = syl.end
-                    else:
-                        text += syl.preview()
-
-                # Add space between words
-                if tok.get_type() == 'word':
-                    text += ' '
-
-            f.write(f"Dialogue: 0,{_fmt_time(ln.get_start())},{_fmt_time(ln.get_end())},"
-                    f"Default,,0,0,0,karaoke,{text}\n")
 
 
 # Styles
