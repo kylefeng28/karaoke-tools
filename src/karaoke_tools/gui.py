@@ -33,7 +33,7 @@ from .launcher import LauncherDialog
 from .mpv import MpvIPC
 from .nlp import FugashiParser, PykakasiParser
 from .settings import DEFAULT_TEMPLATE_FILE, Settings
-from .subs import export_ass
+from .subs import export_ass, read_ass_file
 from .timing import Line, TimedSyllable, TimedWord
 from .tokenizer import (
     generic_tokenizer,
@@ -562,7 +562,7 @@ def main():
         import argparse
 
         parser = argparse.ArgumentParser(description='Karaoke syllable timer')
-        parser.add_argument('lyrics', help='Lyrics file (.txt)')
+        parser.add_argument('lyrics', help='Lyrics file (.txt) or subtitles file (.ass)')
         parser.add_argument('media', nargs='?', help='Audio/video file for mpv')
         parser.add_argument('--tokenize', choices=['none', 'jp', 'mecab', 'kakasi', 'pykakasi', 'romaji'], default=None,
                             help='none=no special parsing. split by CJK characters and Latin alphabet words; jp/mecab/kakasi=use MeCab/kakasi to generate furigana/readings for Japanese text')
@@ -600,22 +600,27 @@ def launch_main_window(settings):
     global window
 
     lyrics_file, media_file, tokenize, convert_romaji = attrgetter("lyrics_file", "media_file", "tokenize", "convert_romaji")(settings)
-    raw_lines = load_raw_lyrics(lyrics_file)
 
-    if tokenize in ('jp', 'mecab'):
-        print('Tokenizing with MeCab' + (' and converting to romaji' if convert_romaji else ''))
-        tokenizer = japanese_tokenizer(FugashiParser(), convert_romaji)
-    elif tokenize in ('kakasi', 'pykakasi'):
-        print('Tokenizing with pykakasi' + (' and converting to romaji' if convert_romaji else ''))
-        tokenizer = japanese_tokenizer(PykakasiParser(), convert_romaji)
-    elif tokenize == 'romaji':
-        print('Tokenizing romaji')
-        tokenizer = romaji_tokenizer()
+    if settings.is_existing_sub():
+        print('Loading existing subs')
+        lines = read_ass_file(settings.lyrics_file)
     else:
-        print('Using generic tokenizer')
-        tokenizer = generic_tokenizer
+        print('Loading lyrics file')
+        raw_lines = load_raw_lyrics(lyrics_file)
+        if tokenize in ('jp', 'mecab'):
+            print('Tokenizing with MeCab' + (' and converting to romaji' if convert_romaji else ''))
+            tokenizer = japanese_tokenizer(FugashiParser(), convert_romaji)
+        elif tokenize in ('kakasi', 'pykakasi'):
+            print('Tokenizing with pykakasi' + (' and converting to romaji' if convert_romaji else ''))
+            tokenizer = japanese_tokenizer(PykakasiParser(), convert_romaji)
+        elif tokenize == 'romaji':
+            print('Tokenizing romaji')
+            tokenizer = romaji_tokenizer()
+        else:
+            print('Using generic tokenizer')
+            tokenizer = generic_tokenizer
 
-    lines = tokenize_lyrics(raw_lines, tokenizer)
+        lines = tokenize_lyrics(raw_lines, tokenizer)
 
     if not lines:
         print(f"No lines found in {lyrics_file}")

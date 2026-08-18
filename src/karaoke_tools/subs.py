@@ -6,11 +6,11 @@ from pysubs2 import SSAEvent, SSAFile, make_time
 from .cjk_utils import convert_to_hiragana
 from .timing import Line, TimedSyllable, TimedWord
 
-# Matches both \k and \kf timing tags (with optional space before the number); group 1 = timing, group 2 = syllable text
-K_TOKEN_RE = re.compile(r'\{\\kf? ?(\d+)\}([^{]*)')  # } to make vim indent formatting happy from unmatched bracket in regex
+# Matches both \k and \kf timing tags (with optional space before the number); group 2 = timing, group 2 = syllable text
+K_TOKEN_RE = re.compile(r'(\{\\kf? ?(\d+)\})?([^{\s]*)')  # } to make vim indent formatting happy from unmatched bracket in regex
 
 
-def parse_k_timing(line: str) -> list[TimedWord]:
+def parse_k_timing(line: str, line_start: float) -> list[TimedWord]:
     """
     Parse an ASS karaoke timing line into a list of TimedWord objects.
 
@@ -19,32 +19,32 @@ def parse_k_timing(line: str) -> list[TimedWord]:
 
     Each TimedWord has:
       .text       — the full word string (e.g. 'watashi')
-      .syllables  — list of TimedSyllable(text, cs) in order
+      .syllables  — list of TimedSyllable in order
     """
-    tokens = [
-        (int(m.group(1)), m.group(2))
-        for m in K_TOKEN_RE.finditer(line)
-    ]
-
     words: list[TimedWord] = []
-    current: list[TimedSyllable] = []
 
-    for cs, raw in tokens:
-        ends_word = raw.endswith(' ')
-        text = raw.rstrip(' ')
+    t_s = line_start
+    for word_token in line.split():
+        current: list[TimedSyllable] = []
+        matches = [
+            (int(m.group(2)) if m.group(2) else None, m.group(3))
+            for m in K_TOKEN_RE.finditer(word_token)
+        ]
+        for cs, raw in matches:
+            text = raw.strip()
 
-        if text:
-            current.append(TimedSyllable(text.strip(), cs))
+            if text:
+                if cs:
+                    start = t_s
+                    end = start + cs / 100
+                    t_s = end
+                    current.append(TimedSyllable(text, mode='start_end', timed=True, start=start, end=end))
+                else:
+                    current.append(TimedSyllable(text, mode='start_end', timed=False))
 
-        if ends_word and current:
-            word_text = "".join(s.text for s in current)
-            words.append(TimedWord(word_text, current))
-            current = []
-
-    # Flush final word (no trailing space on last token)
-    if current:
         word_text = "".join(s.text for s in current)
         words.append(TimedWord(word_text, current))
+        current = []
 
     return words
 
@@ -67,7 +67,8 @@ def read_ass_file(input_file) -> list[Line]:
         if sub_line.text.startswith('!'):
             continue
 
-        timed_words = parse_k_timing(sub_line.text)
+        line_start = sub_line.start / 1000 # convert from ms to s
+        timed_words = parse_k_timing(sub_line.text, line_start)
         lines.append(Line(tokens=timed_words))
 
     return lines

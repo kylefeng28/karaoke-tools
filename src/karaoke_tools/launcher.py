@@ -166,10 +166,10 @@ class LauncherDialog(QDialog):
             return widget
 
         self.lyrics_path = addWidget(FilePicker(
-            title="Lyrics file (required)",
+            title="Lyrics file or existing subs file (required)",
             placeholder="Select an .txt lyrics file...",
             browse_title="Select lyrics file",
-            file_types="Text files (*.txt);;All files (*)",
+            file_types="Text files (*.txt *.ass);;All files (*)",
         ))
         self.settings.add_config(FilePathConfig(_LYRICS_PATH, self.lyrics_path.line_edit))
 
