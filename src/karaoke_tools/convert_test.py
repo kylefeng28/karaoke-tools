@@ -1,16 +1,23 @@
-from .nlp import FugashiParser, PykakasiParser
 import sys
 
-from .subs import read_ass_file, convert_hiragana
+from .cjk_utils import convert_to_romaji
 from .merge import merge_files
-
+from .nlp import FugashiParser, PykakasiParser
+from .subs import convert_hiragana, read_ass_file
 
 # parser = PykakasiParser()
 parser = FugashiParser()
-def convert_and_print(text):
+def convert_and_print(text, show_repr=True):
     converted = parser.convert(text)
+
     for token in converted:
-        print(token)
+        hiragana = (token.reading or token.surface)
+        romaji = convert_to_romaji(hiragana, True)
+        if show_repr:
+            print(repr(token))
+            print(romaji)
+        else:
+            print(token, romaji)
 
 
 def read_txt_file(input_file):

@@ -22,7 +22,7 @@ def test_japanese():
         text = '私は人間です',
         expected = [
             JapaneseToken(surface='私', reading='わたし', furigana_pairs=[('私', 'わたし')]),
-            JapaneseToken(surface='は', reading=None, furigana_pairs=('は',)),
+            JapaneseToken(surface='は', reading='は', furigana_pairs=('は',)),
             JapaneseToken(surface='人間です', reading='にんげんです', furigana_pairs=[('人間', 'にんげん'), ('で',), ('す',)]),
         ],
         expected_romaji = ['watashi', 'wa', 'ningendesu']
@@ -32,12 +32,12 @@ def test_japanese():
         text = '強くなれる理由を知った　僕を連れて進め',
         expected = [
             JapaneseToken(surface='強く', reading='つよく', furigana_pairs=[('強', 'つよ'), ('く',)]),
-            JapaneseToken(surface='なれる', reading=None, furigana_pairs=('なれる',)),
+            JapaneseToken(surface='なれる', reading='なれる', furigana_pairs=('なれる',)),
             JapaneseToken(surface='理由', reading='りゆう', furigana_pairs=[('理由', 'りゆう')]),
-            JapaneseToken(surface='を', reading=None, furigana_pairs=('を',)),
+            JapaneseToken(surface='を', reading='を', furigana_pairs=('を',)),
             JapaneseToken(surface='知った', reading='しった', furigana_pairs=[('知', 'し'), ('っ',), ('た',)]),
             JapaneseToken(surface='僕', reading='ぼく', furigana_pairs=[('僕', 'ぼく')]),
-            JapaneseToken(surface='を', reading=None, furigana_pairs=('を',)),
+            JapaneseToken(surface='を', reading='を', furigana_pairs=('を',)),
             JapaneseToken(surface='連れて', reading='つれて', furigana_pairs=[('連', 'つ'), ('れ',), ('て',)]),
             JapaneseToken(surface='進め', reading='すすめ', furigana_pairs=[('進', 'すす'), ('め',)]),
         ],
@@ -67,7 +67,7 @@ def test_japanese_unknown_reading():
         text = '憚るもの皆',
         expected = [
             JapaneseToken(surface='憚る', reading='?る', furigana_pairs=[('憚', '?'), ('る',)]),
-            JapaneseToken(surface='もの', reading=None, furigana_pairs=('もの',)),
+            JapaneseToken(surface='もの', reading='もの', furigana_pairs=('もの',)),
             JapaneseToken(surface='皆', reading='みな', furigana_pairs=[('皆', 'みな')])
         ],
         expected_romaji = ['?ru', 'mono', 'mina']
