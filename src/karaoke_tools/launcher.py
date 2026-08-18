@@ -2,8 +2,17 @@ import os
 
 from PyQt6.QtCore import QSettings
 from PyQt6.QtWidgets import (
-    QButtonGroup, QCheckBox, QDialog, QFileDialog, QGroupBox, QHBoxLayout,
-    QLineEdit, QPushButton, QRadioButton, QVBoxLayout, QWidget
+    QButtonGroup,
+    QCheckBox,
+    QDialog,
+    QFileDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLineEdit,
+    QPushButton,
+    QRadioButton,
+    QVBoxLayout,
+    QWidget,
 )
 
 TITLE = "Karaoke Syllable Timer"
@@ -12,6 +21,9 @@ _LYRICS_PATH = "launcher/lyrics_path"
 _MEDIA_PATH = "launcher/media_path"
 _TOKENIZER = "launcher/tokenizer"
 _CONVERT_ROMAJI = "launcher/convert_romaji"
+
+from .settings import Settings
+
 
 # ------------------------------------------------------------------------------
 # QSettings helpers
@@ -204,17 +216,14 @@ class LauncherDialog(QDialog):
             self.lyrics_path.show_error()
             return
 
-        tokenize = self.tokenize_radio.value()
-        convert_romaji = self.romaji_checkbox.isChecked()
-
         self.settings.save_settings()
 
-        self.result = {
-            'lyrics': lyrics,
-            'media': self.media_path.value() or None,
-            'tokenize': tokenize,
-            'convert_romaji': convert_romaji,
-        }
+        self.result = Settings(
+            lyrics_file=lyrics,
+            media_file=self.media_path.value() or None,
+            tokenize=self.tokenize_radio.value(),
+            convert_romaji=self.romaji_checkbox.isChecked(),
+        )
         self.accept()
 
 

@@ -10,23 +10,35 @@ Controls:
   S      — save .ass file
 """
 
-import os
 import sys
-from dataclasses import dataclass
+from operator import attrgetter
 
-from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QHBoxLayout, QLabel, QStatusBar, QDialog)
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent
+from PyQt6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QHBoxLayout,
+    QLabel,
+    QMainWindow,
+    QStatusBar,
+    QVBoxLayout,
+    QWidget,
+)
 
 from .launcher import LauncherDialog
 from .mpv import MpvIPC
-from .timing import TimedSyllable, TimedWord, Line
 from .nlp import FugashiParser, PykakasiParser
-from .tokenizer import japanese_tokenizer, romaji_tokenizer, generic_tokenizer, tokenize_lyrics
-from .utils import _fmt_time, _fmt_speed
+from .settings import DEFAULT_TEMPLATE_FILE, Settings
 from .subs import export_ass
-
+from .timing import Line, TimedSyllable, TimedWord
+from .tokenizer import (
+    generic_tokenizer,
+    japanese_tokenizer,
+    romaji_tokenizer,
+    tokenize_lyrics,
+)
+from .utils import _fmt_speed, _fmt_time
 
 TITLE = "Karaoke Syllable Timer"
 CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save"
@@ -45,9 +57,6 @@ CUR_TOK_FG = 'white'
 TOK_TIMED_ACTIVE_WORD_FG = '#34694e'
 TOK_TIMED_FG = '#4caf50'
 TOK_DEFAULT_FG = '#ccc'
-
-
-DEFAULT_TEMPLATE_FILE = './templates/karaoke_mugen_template.ass'
 
 
 class SyllableWidget(QWidget):
@@ -135,27 +144,21 @@ class SyllableWidget(QWidget):
         return (html, style)
 
 
-@dataclass
-class ExportSettings:
-    out_path: str
-    template_file: str
-
-
 class MainWindow(QMainWindow):
     lines: list[Line]
     mpv: MpvIPC
-    export_settings: ExportSettings
+    settings: Settings
     cur_line: int
     cur_tok: int
     syl_start: float | None
     playing: bool
     last_t: float
 
-    def __init__(self, lines: list[Line], mpv: MpvIPC | None, export_settings: ExportSettings):
+    def __init__(self, lines: list[Line], mpv: MpvIPC | None, settings: Settings):
         super().__init__()
         self.lines = lines
         self.mpv = mpv
-        self.export_settings = export_settings
+        self.settings = settings
         self.cur_line = 0
         self.cur_tok = 0
         self.syl_start: float | None = None
@@ -349,8 +352,8 @@ class MainWindow(QMainWindow):
 
             elif key == Qt.Key.Key_S:
                 self.pause()
-                export_ass(self.lines, self.export_settings.out_path, template_file=self.export_settings.template_file)
-                self.status.showMessage(f"✓ Saved → {self.export_settings.out_path}")
+                export_ass(self.lines, self.settings.out_path, template_file=self.settings.template_file)
+                self.status.showMessage(f"✓ Saved → {self.settings.out_path}")
                 self._refresh()
 
         if key == Qt.Key.Key_Right:
@@ -432,12 +435,7 @@ def main():
         if dlg.exec() != QDialog.DialogCode.Accepted or dlg.result is None:
             sys.exit(0)
 
-        lyrics_file = dlg.result['lyrics']
-        media_file = dlg.result['media']
-        tokenize = dlg.result['tokenize']
-        out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
-        convert_romaji = dlg.result['convert_romaji']
-        template_file = DEFAULT_TEMPLATE_FILE
+        settings = dlg.result
 
     else:
         import argparse
@@ -456,16 +454,15 @@ def main():
 
         args = parser.parse_args()
 
-        lyrics_file = args.lyrics
-        media_file = args.media
-        tokenize = args.tokenize
-        out_path = args.out
-        convert_romaji = args.convert_romaji
-        template_file = args.template
+        settings = Settings(
+            lyrics_file=args.lyrics,
+            media_file=args.media,
+            tokenize=args.tokenize,
+            out_path=args.out,
+            convert_romaji=args.convert_romaji,
+        )
 
-        if not out_path:
-            out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
-
+    lyrics_file, media_file, tokenize, convert_romaji = attrgetter("lyrics_file", "media_file", "tokenize", "convert_romaji")(settings)
     raw_lines = load_raw_lyrics(lyrics_file)
 
     if tokenize in ('jp', 'mecab'):
@@ -489,7 +486,7 @@ def main():
 
     mpv = MpvIPC(media_file) if media_file else None
 
-    win = MainWindow(lines, mpv, ExportSettings(out_path, template_file))
+    win = MainWindow(lines, mpv, settings)
     win.show()
     sys.exit(app.exec())
 
