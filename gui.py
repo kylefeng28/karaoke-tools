@@ -15,12 +15,11 @@ import sys
 from dataclasses import dataclass
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
-                             QHBoxLayout, QLabel, QStatusBar, QDialog,
-                             QPushButton, QFileDialog, QRadioButton, QCheckBox,
-                             QButtonGroup, QGroupBox, QLineEdit)
-from PyQt6.QtCore import Qt, QTimer, QSettings
+                             QHBoxLayout, QLabel, QStatusBar, QDialog)
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent
 
+from launcher import LauncherDialog
 from mpv import MpvIPC
 from timing import TimedSyllable, TimedWord, Line
 from nlp import FugashiParser, PykakasiParser
@@ -422,145 +421,6 @@ def load_raw_lyrics(path: str) -> list[str]:
             if raw:
                 line.append(raw)
     return line
-
-
-class LauncherDialog(QDialog):
-    _LYRICS_PATH = "launcher/lyrics_path"
-    _MEDIA_PATH = "launcher/media_path"
-    _TOKENIZER = "launcher/tokenizer"
-    _CONVERT_ROMAJI = "launcher/convert_romaji"
-
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle(TITLE)
-        self.setMinimumWidth(500)
-        self.settings = QSettings("karaoke-tools", "karaoke-syncer")
-
-        layout = QVBoxLayout(self)
-
-        # Lyrics file picker
-        lyrics_group = QGroupBox("Lyrics file (required)")
-        lyrics_layout = QHBoxLayout(lyrics_group)
-        self.lyrics_path = QLineEdit()
-        self.lyrics_path.setPlaceholderText("Select a .txt lyrics file...")
-        self.lyrics_path.setReadOnly(True)
-        lyrics_btn = QPushButton("Browse...")
-        lyrics_btn.clicked.connect(self._browse_lyrics)
-        lyrics_layout.addWidget(self.lyrics_path)
-        lyrics_layout.addWidget(lyrics_btn)
-        layout.addWidget(lyrics_group)
-
-        # Media file picker
-        media_group = QGroupBox("Media file (optional)")
-        media_layout = QHBoxLayout(media_group)
-        self.media_path = QLineEdit()
-        self.media_path.setPlaceholderText("Select an audio/video file...")
-        self.media_path.setReadOnly(True)
-        media_btn = QPushButton("Browse...")
-        media_btn.clicked.connect(self._browse_media)
-        media_clear_btn = QPushButton("Clear")
-        media_clear_btn.clicked.connect(lambda: self.media_path.clear())
-        media_layout.addWidget(self.media_path)
-        media_layout.addWidget(media_btn)
-        media_layout.addWidget(media_clear_btn)
-        layout.addWidget(media_group)
-
-        # Tokenizer radio buttons
-        tok_group = QGroupBox("Tokenizer")
-        tok_layout = QVBoxLayout(tok_group)
-        self.tok_button_group = QButtonGroup(self)
-
-        def add_tokenizer_option(title, id):
-            radio = QRadioButton(title)
-            self.tok_button_group.addButton(radio, id)
-            tok_layout.addWidget(radio)
-
-        add_tokenizer_option("None (generic)", 0)
-        add_tokenizer_option("MeCab (Japanese, morphological analyzer)", 1)
-        add_tokenizer_option("Kakasi (Japanese, lightweight)", 2)
-        add_tokenizer_option("Japanese romaji", 3)
-
-        layout.addWidget(tok_group)
-
-        # Options
-        options_group = QGroupBox("Options")
-        options_layout = QVBoxLayout(options_group)
-
-        self.romaji_checkbox = QCheckBox("Convert to Romaji")
-        options_layout.addWidget(self.romaji_checkbox)
-
-        layout.addWidget(options_group)
-
-        # Launch button
-        self.launch_btn = QPushButton("Launch")
-        self.launch_btn.setDefault(True)
-        self.launch_btn.setMinimumHeight(40)
-        self.launch_btn.clicked.connect(self._launch)
-        layout.addWidget(self.launch_btn)
-
-        self.result = None
-
-        # Restore cached values
-        self._restore_settings()
-
-    def _restore_settings(self):
-        lyrics = self.settings.value(self._LYRICS_PATH, "")
-        media = self.settings.value(self._MEDIA_PATH, "")
-        tok_id = self.settings.value(self._TOKENIZER, 0, type=int)
-        convert_romaji = self.settings.value(self._CONVERT_ROMAJI, False, type=bool)
-
-        if lyrics and os.path.isfile(lyrics):
-            self.lyrics_path.setText(lyrics)
-        if media and os.path.isfile(media):
-            self.media_path.setText(media)
-
-        btn = self.tok_button_group.button(tok_id)
-        if btn:
-            btn.setChecked(True)
-
-        self.romaji_checkbox.setChecked(convert_romaji)
-
-    def _save_settings(self):
-        self.settings.setValue(self._LYRICS_PATH, self.lyrics_path.text().strip())
-        self.settings.setValue(self._MEDIA_PATH, self.media_path.text().strip())
-        self.settings.setValue(self._TOKENIZER, self.tok_button_group.checkedId())
-        self.settings.setValue(self._CONVERT_ROMAJI, self.romaji_checkbox.isChecked())
-
-    def _browse_lyrics(self):
-        start_dir = os.path.dirname(self.lyrics_path.text()) if self.lyrics_path.text() else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select Lyrics File", start_dir,
-            "Text files (*.txt);;All files (*)")
-        if path:
-            self.lyrics_path.setText(path)
-
-    def _browse_media(self):
-        start_dir = os.path.dirname(self.media_path.text()) if self.media_path.text() else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select Media File", start_dir,
-            "Media files (*.mp4 *.mkv *.avi *.webm *.mp3 *.ogg *.flac *.wav);;All files (*)")
-        if path:
-            self.media_path.setText(path)
-
-    def _launch(self):
-        lyrics = self.lyrics_path.text().strip()
-        if not lyrics:
-            self.lyrics_path.setStyleSheet("border: 2px solid red;")
-            return
-
-        tok_id = self.tok_button_group.checkedId()
-        tokenize = {0: None, 1: 'mecab', 2: 'kakasi', 3: 'romaji'}.get(tok_id)
-        convert_romaji = self.romaji_checkbox.isChecked()
-
-        self._save_settings()
-
-        self.result = {
-            'lyrics': lyrics,
-            'media': self.media_path.text().strip() or None,
-            'tokenize': tokenize,
-            'convert_romaji': convert_romaji,
-        }
-        self.accept()
 
 
 def main():
