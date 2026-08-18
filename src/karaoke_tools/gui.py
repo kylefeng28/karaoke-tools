@@ -453,8 +453,10 @@ class MainWindow(QMainWindow):
             return None
 
         path = Path(path)
-        if path.suffix != 'ass':
+        if path.suffix != '.ass':
             return path.with_suffix(path.suffix + '.ass')
+        else:
+            return path
 
     def show_new_launcher(self):
         new_settings = show_launcher_dialog()
