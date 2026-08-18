@@ -353,7 +353,7 @@ class MainWindow(QMainWindow):
                 self.syl_start = None
                 if self.cur_tok > 0: self.cur_tok = 0
                 elif self.cur_line > 0: self.cur_line -= 1; self.cur_tok = 0
-                self.mpv.seek(self.get_cur_line().start)
+                self.mpv.seek(self.get_cur_line().get_start())
                 self.show_status(f"↩ Line {self.cur_line+1}")
                 self._refresh()
 
