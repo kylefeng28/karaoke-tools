@@ -10,10 +10,10 @@ Controls:
   S      — save .ass file
 """
 
-from pathlib import Path
 import signal
 import sys
 from operator import attrgetter
+from pathlib import Path
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent
@@ -256,13 +256,13 @@ class MainWindow(QMainWindow):
             self._refresh()
 
     def _start_syl(self):
-        tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
+        tok = self.get_cur_tok()
         tok.start = self.last_t
         tok.timed = False
         self.syl_start = self.last_t
 
     def _end_syl(self, advance: bool):
-        tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
+        tok = self.get_cur_tok()
         if self.syl_start is not None:
             tok.end = self.last_t; tok.timed = True
         self.syl_start = None
@@ -331,9 +331,9 @@ class MainWindow(QMainWindow):
                 self.last_t = self.mpv.get_time()
                 if self.syl_start is None:
                     self._start_syl()
-                    self.show_status(f"Started: {self.lines[self.cur_line].get_syllable(self.cur_tok).preview()!r}")
+                    self.show_status(f"Started: {self.get_cur_tok().preview()!r}")
                 else:
-                    tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
+                    tok = self.get_cur_tok()
                     self._end_syl(advance=True)
                     self.show_status(f"✓ {tok.preview()!r}  {tok.start:.2f}–{tok.end:.2f}s")
                 self._refresh()
@@ -342,7 +342,7 @@ class MainWindow(QMainWindow):
             elif key == Qt.Key.Key_N:
                 self.last_t = self.mpv.get_time()
                 if self.syl_start is not None:
-                    tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
+                    tok = self.get_cur_tok()
                     self._end_syl(advance=False)
                     self.token_next() or self.line_next()
                     self.show_status(f"✓ {tok.preview()!r} ended, gap …")
@@ -353,13 +353,13 @@ class MainWindow(QMainWindow):
                 self.syl_start = None
                 if self.cur_tok > 0: self.cur_tok = 0
                 elif self.cur_line > 0: self.cur_line -= 1; self.cur_tok = 0
-                self.mpv.seek(self.lines[self.cur_line].start)
+                self.mpv.seek(self.get_cur_line().start)
                 self.show_status(f"↩ Line {self.cur_line+1}")
                 self._refresh()
 
             # R      — reset current line
             elif key == Qt.Key.Key_R:
-                for tk in self.lines[self.cur_line].get_syllables(): tk.timed=False; tk.start=tk.end=0.0
+                for tk in self.get_cur_line().get_syllables(): tk.timed=False; tk.start=tk.end=0.0
                 self.cur_tok = 0; self.syl_start = None
                 self.show_status("Line reset.")
                 self._refresh()
@@ -401,16 +401,28 @@ class MainWindow(QMainWindow):
         self.mpv.pause()
         self.playing = False
 
+    def get_cur_tok(self):
+        return self.lines[self.cur_line].get_syllable(self.cur_tok)
+
+    def get_cur_line(self):
+        return self.lines[self.cur_line]
+
     def token_prev(self):
-        if self.cur_tok > 0:
+        while self.cur_tok > 0:
             self.cur_tok -= 1
-            return True
+            if self.get_cur_tok().mode != 'skip':
+                return True
+        return False
 
     def token_next(self):
-        if self.cur_tok < len(self.lines[self.cur_line].get_syllables())-1:
+        while self.cur_tok < len(self.get_cur_line().get_syllables())-1:
             self.cur_tok += 1
-            return True
+            if self.get_cur_tok().mode != 'skip':
+                return True
+        return False
 
+    # TODO: need to gracefully handle cases when advancing to the next line and the first character is punctuation (skip)
+    # or going to the previous line and the last character is punctuation
     def line_prev(self):
         if self.cur_line > 0:
             self.cur_line -= 1
@@ -424,7 +436,7 @@ class MainWindow(QMainWindow):
             return True
 
     def line_end(self):
-        self.cur_tok = len(self.lines[self.cur_line].get_syllables())-1
+        self.cur_tok = len(self.get_cur_line().get_syllables())-1
         return True
 
     def closeEvent(self, ev):

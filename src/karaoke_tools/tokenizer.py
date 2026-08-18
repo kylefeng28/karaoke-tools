@@ -1,12 +1,29 @@
-from .cjk_utils import convert_to_romaji, is_cjk, split_morae, split_tokens
+from .cjk_utils import (
+    convert_to_romaji,
+    is_cjk,
+    is_punctuation,
+    split_morae,
+    split_tokens,
+)
 from .romaji_utils import split_romaji_morae
 from .timing import Line, TimedSyllable, TimedWord
+
+
+def should_skip(text):
+    return any(is_punctuation(ch) for ch in text.strip())
+
+
+def make_syllable(text):
+    if should_skip(text):
+        return TimedSyllable(text, mode='skip')
+    else:
+        return TimedSyllable(text, mode='start_end')
 
 
 def generic_tokenizer(text):
     """Generic tokenizer, suitable for Chinese and Korean. Can be used as a fallback for other languages."""
     tokens = split_tokens(text)
-    return [TimedSyllable(tok, mode='start_end') for tok in tokens]
+    return [make_syllable(tok) for tok in tokens]
 
 
 def japanese_tokenizer(parser, convert_romaji=False):
@@ -20,9 +37,9 @@ def japanese_tokenizer(parser, convert_romaji=False):
             if all(is_cjk(ch) for ch in surface):
                 hiragana = token.reading or token.surface
                 morae = split_morae(hiragana)
-                syllables = [TimedSyllable(m, mode='start_end') for m in morae]
+                syllables = [make_syllable(m) for m in morae]
             else:
-                syllables = [TimedSyllable(token.surface, mode='start_end')]
+                syllables = [make_syllable(token.surface)]
 
             tokens.append(TimedWord(text=surface, syllables=syllables))
 
@@ -54,9 +71,9 @@ def romaji_tokenizer():
         tokens = []
         for word in split_tokens(text):
             if morae := split_romaji_morae(word):
-                syllables = [TimedSyllable(m, mode='start_end') for m in morae]
+                syllables = [make_syllable(m) for m in morae]
             else:
-                syllables = [TimedSyllable(word, mode='start_end')]
+                syllables = [make_syllable(word)]
             tokens.append(TimedWord(text=word, syllables=syllables))
 
         return tokens

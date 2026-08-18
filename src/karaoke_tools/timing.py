@@ -19,7 +19,7 @@ class TimedSyllable(Token):
     Could be a standalone syllable or part of a TimedWord
     """
     text:      str
-    mode:      Literal['start_end', 'duration']
+    mode:      Literal['start_end', 'duration', 'skip']
     timed:     bool  = False
     duration:  int   = None
     start:     float = None
@@ -32,11 +32,17 @@ class TimedSyllable(Token):
     def from_duration(cls, text: str, duration: int):
         return cls(text, mode='duration', duration=duration)
 
+    @classmethod
+    def skip(cls, text: str, duration: int):
+        return cls(text, mode='skip')
+
     def __str__(self):
         if self.mode == 'start_end':
             return f"{{{self.text}, {self.start}:{self.end}}}"
-        else:
+        elif self.mode == 'duration':
             return f"{{{self.text}, {self.duration}}}"
+        else:
+            return f"{{{self.text}"
 
     def preview(self):
         return self.text

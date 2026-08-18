@@ -49,6 +49,10 @@ def is_hangul(ch) -> bool:
     return unicodedata.name(ch).startswith('HANGUL')
 
 
+def is_punctuation(ch) -> bool:
+    return unicodedata.category(ch).startswith('P')
+
+
 def is_cjk(ch) -> bool:
     return is_kanji(ch) or is_kana(ch) or is_hangul(ch)
 
@@ -93,7 +97,7 @@ def split_tokens(text: str) -> list[str]:
                 tokens.append(ch)
         elif unicodedata.category(ch) == 'Zs' or ch.isspace():
             flush_latin()
-        elif unicodedata.category(ch).startswith('P'):
+        elif is_punctuation(ch):
             # Apostrophe: consider part of current word
             if ch == "'":
                 current_latin.append(ch)
