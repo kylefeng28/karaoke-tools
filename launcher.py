@@ -13,6 +13,9 @@ _MEDIA_PATH = "launcher/media_path"
 _TOKENIZER = "launcher/tokenizer"
 _CONVERT_ROMAJI = "launcher/convert_romaji"
 
+# ------------------------------------------------------------------------------
+# QSettings helpers
+# ------------------------------------------------------------------------------
 class WidgetConfig[T: QWidget | QButtonGroup]:
     def __init__(self, key: str, widget: T):
         self.key = key
@@ -75,7 +78,68 @@ class LauncherSettings:
         for config in self.configs:
             config.restore(self.qsettings)
 
+# ------------------------------------------------------------------------------
+# Custom widgets
+# ------------------------------------------------------------------------------
+class FilePicker(QGroupBox):
+    def __init__(self, title: str, placeholder: str, browse_title: str, file_types: str):
+        super().__init__(title)
 
+        self.title = title
+        self.placeholder = placeholder
+        self.browse_title = browse_title
+        self.file_types = file_types
+
+        layout = QHBoxLayout(self)
+        self.line_edit = QLineEdit()
+        self.line_edit.setPlaceholderText(placeholder)
+        self.line_edit.setReadOnly(True)
+        layout.addWidget(self.line_edit)
+        browse_btn = QPushButton("Browse...", clicked=self.browse)
+        layout.addWidget(browse_btn)
+        clear_btn = QPushButton("Clear", clicked=self.clear)
+        layout.addWidget(clear_btn)
+
+        self.setLayout(layout)
+
+    def clear(self):
+        self.line_edit.clear()
+
+    def browse(self):
+        start_dir = os.path.dirname(self.line_edit.text()) if self.line_edit.text() else ""
+        path, _ = QFileDialog.getOpenFileName(
+            self.parent(), self.browse_title, start_dir,
+            self.file_types)
+        if path:
+            self.line_edit.setText(path)
+
+    def value(self) -> str:
+        return self.line_edit.text().strip()
+
+    def show_error(self):
+        self.line_edit.setStyleSheet("border: 2px solid red;")
+
+class RadioGroup(QGroupBox):
+    def __init__(self, title: str):
+        super().__init__(title)
+        self.options = {}
+        self.layout = QVBoxLayout(self)
+        self.btn_group = QButtonGroup(self)
+        self.setLayout(self.layout)
+
+    def add_option(self, id: int, title: str, name: str):
+        self.options[id] = name
+        radio = QRadioButton(title)
+        self.layout.addWidget(radio)
+        self.btn_group.addButton(radio, id)
+
+    def value(self) -> str:
+        id = self.btn_group.checkedId()
+        return self.options.get(id)
+
+# ------------------------------------------------------------------------------
+# Launcher dialog
+# ------------------------------------------------------------------------------
 class LauncherDialog(QDialog):
     def __init__(self):
         super().__init__()
@@ -85,110 +149,69 @@ class LauncherDialog(QDialog):
 
         layout = QVBoxLayout(self)
 
-        # Lyrics file picker
-        lyrics_group = QGroupBox("Lyrics file (required)")
-        lyrics_layout = QHBoxLayout(lyrics_group)
-        self.lyrics_path = QLineEdit()
-        self.lyrics_path.setPlaceholderText("Select a .txt lyrics file...")
-        self.lyrics_path.setReadOnly(True)
-        lyrics_btn = QPushButton("Browse...")
-        lyrics_btn.clicked.connect(self._browse_lyrics)
-        lyrics_layout.addWidget(self.lyrics_path)
-        lyrics_layout.addWidget(lyrics_btn)
-        layout.addWidget(lyrics_group)
+        def addWidget(widget):
+            layout.addWidget(widget)
+            return widget
 
-        self.settings.add_config(FilePathConfig(_LYRICS_PATH, self.lyrics_path))
+        self.lyrics_path = addWidget(FilePicker(
+            title="Lyrics file (required)",
+            placeholder="Select an .txt lyrics file...",
+            browse_title="Select lyrics file",
+            file_types="Text files (*.txt);;All files (*)",
+        ))
+        self.settings.add_config(FilePathConfig(_LYRICS_PATH, self.lyrics_path.line_edit))
 
-        # Media file picker
-        media_group = QGroupBox("Media file (optional)")
-        media_layout = QHBoxLayout(media_group)
-        self.media_path = QLineEdit()
-        self.media_path.setPlaceholderText("Select an audio/video file...")
-        self.media_path.setReadOnly(True)
-        media_btn = QPushButton("Browse...")
-        media_btn.clicked.connect(self._browse_media)
-        media_clear_btn = QPushButton("Clear")
-        media_clear_btn.clicked.connect(lambda: self.media_path.clear())
-        media_layout.addWidget(self.media_path)
-        media_layout.addWidget(media_btn)
-        media_layout.addWidget(media_clear_btn)
-        layout.addWidget(media_group)
-
-        self.settings.add_config(FilePathConfig(_MEDIA_PATH, self.media_path))
+        self.media_path = addWidget(FilePicker(
+            title="Media file (optional)",
+            placeholder="Select an audio/video file...",
+            browse_title="Select media file",
+            file_types="Media files (*.mp4 *.mkv *.avi *.webm *.mp3 *.ogg *.flac *.wav);;All files (*)"
+        ))
+        self.settings.add_config(FilePathConfig(_MEDIA_PATH, self.media_path.line_edit))
 
         # Tokenizer radio buttons
-        tok_group = QGroupBox("Tokenizer")
-        tok_layout = QVBoxLayout(tok_group)
-        self.tok_button_group = QButtonGroup(self)
+        self.tokenize_radio = addWidget(RadioGroup("Tokenizer"))
+        self.tokenize_radio.add_option(0, "None (generic)", None)
+        self.tokenize_radio.add_option(1, "MeCab (Japanese, morphological analyzer)", "mecab")
+        self.tokenize_radio.add_option(2, "Kakasi (Japanese, lightweight)", "kakasi")
+        self.tokenize_radio.add_option(3, "Japanese romaji", "romaji")
 
-        def add_tokenizer_option(title, id):
-            radio = QRadioButton(title)
-            self.tok_button_group.addButton(radio, id)
-            tok_layout.addWidget(radio)
-
-        add_tokenizer_option("None (generic)", 0)
-        add_tokenizer_option("MeCab (Japanese, morphological analyzer)", 1)
-        add_tokenizer_option("Kakasi (Japanese, lightweight)", 2)
-        add_tokenizer_option("Japanese romaji", 3)
-
-        layout.addWidget(tok_group)
-
-        self.settings.add_config(RadioConfig(_TOKENIZER, self.tok_button_group))
+        self.settings.add_config(RadioConfig(_TOKENIZER, self.tokenize_radio.btn_group))
 
         # Options
-        options_group = QGroupBox("Options")
+        options_group = addWidget(QGroupBox("Options"))
         options_layout = QVBoxLayout(options_group)
 
         self.romaji_checkbox = QCheckBox("Convert to Romaji")
         options_layout.addWidget(self.romaji_checkbox)
 
-        layout.addWidget(options_group)
-
         self.settings.add_config(CheckboxConfig(_CONVERT_ROMAJI, self.romaji_checkbox))
 
         # Launch button
-        self.launch_btn = QPushButton("Launch")
+        self.launch_btn = addWidget(QPushButton("Launch"))
         self.launch_btn.setDefault(True)
         self.launch_btn.setMinimumHeight(40)
         self.launch_btn.clicked.connect(self._launch)
-        layout.addWidget(self.launch_btn)
 
         self.result = None
 
         # Restore cached values
         self.settings.restore_settings()
 
-    def _browse_lyrics(self):
-        start_dir = os.path.dirname(self.lyrics_path.text()) if self.lyrics_path.text() else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select Lyrics File", start_dir,
-            "Text files (*.txt);;All files (*)")
-        if path:
-            self.lyrics_path.setText(path)
-
-    def _browse_media(self):
-        start_dir = os.path.dirname(self.media_path.text()) if self.media_path.text() else ""
-        path, _ = QFileDialog.getOpenFileName(
-            self, "Select Media File", start_dir,
-            "Media files (*.mp4 *.mkv *.avi *.webm *.mp3 *.ogg *.flac *.wav);;All files (*)")
-        if path:
-            self.media_path.setText(path)
-
     def _launch(self):
-        lyrics = self.lyrics_path.text().strip()
+        lyrics = self.lyrics_path.value()
         if not lyrics:
-            self.lyrics_path.setStyleSheet("border: 2px solid red;")
+            self.lyrics_path.show_error()
             return
 
-        tok_id = self.tok_button_group.checkedId()
-        tokenize = {0: None, 1: 'mecab', 2: 'kakasi', 3: 'romaji'}.get(tok_id)
+        tokenize = self.tokenize_radio.value()
         convert_romaji = self.romaji_checkbox.isChecked()
 
         self.settings.save_settings()
 
         self.result = {
             'lyrics': lyrics,
-            'media': self.media_path.text().strip() or None,
+            'media': self.media_path.value() or None,
             'tokenize': tokenize,
             'convert_romaji': convert_romaji,
         }
