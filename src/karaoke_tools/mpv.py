@@ -28,4 +28,4 @@ class MpvIPC:
         self._cmd(['set_property', 'speed', self.speed])
 
     def close(self):
-        self.mpv.stop()
+        self.mpv.terminate()

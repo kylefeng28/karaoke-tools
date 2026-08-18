@@ -12,6 +12,7 @@ Controls:
 
 import sys
 from operator import attrgetter
+import signal
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent
@@ -227,10 +228,14 @@ class MainWindow(QMainWindow):
 
     def _tick(self):
         if self.mpv:
-            self.last_t = self.mpv.get_time()
-            self.lbl_time.setText(_fmt_time(self.last_t))
-            if self.playing:
-                self._auto_advance()
+            try:
+                self.last_t = self.mpv.get_time()
+                self.lbl_time.setText(_fmt_time(self.last_t))
+                if self.playing:
+                    self._auto_advance()
+            except BrokenPipeError:
+                print('mpv has stopped unexpectedly')
+                self.mpv = None
 
     def _auto_advance(self):
         t = self.last_t
@@ -426,8 +431,34 @@ def load_raw_lyrics(path: str) -> list[str]:
     return line
 
 
+mpv = None
+def cleanup(*args):
+    if mpv:
+        try:
+            print('Stopping mpv...')
+            mpv.close()
+        except Exception:
+            print('Error stopping mpv')
+            pass
+    print('Exiting...')
+    sys.exit(0)
+
+
 def main():
+    global mpv
+
     app = QApplication(sys.argv)
+
+    # Start QTimer to handle Control-C from Python thread
+    timer = QTimer()
+    timer.timeout.connect(lambda: None)
+    timer.start(200)
+
+    # Run cleanup on Qt exit handler
+    app.aboutToQuit.connect(cleanup)
+
+    # Run cleanup on SIGINT handler
+    signal.signal(signal.SIGINT, cleanup)
 
     # If no CLI arguments provided, show the launcher dialog
     if len(sys.argv) <= 1:
@@ -486,9 +517,13 @@ def main():
 
     mpv = MpvIPC(media_file) if media_file else None
 
-    win = MainWindow(lines, mpv, settings)
-    win.show()
-    sys.exit(app.exec())
+    try:
+        win = MainWindow(lines, mpv, settings)
+        win.show()
+        sys.exit(app.exec())
+    except KeyboardInterrupt as e:
+        print('caught c-c')
+        print(e)
 
 
 if __name__ == '__main__':
