@@ -507,7 +507,7 @@ class LauncherDialog(QDialog):
         lyrics = self.settings.value(self._LYRICS_PATH, "")
         media = self.settings.value(self._MEDIA_PATH, "")
         tok_id = self.settings.value(self._TOKENIZER, 0, type=int)
-        convert_romaji = self.settings.value(self._CONVERT_ROMAJI, False)
+        convert_romaji = self.settings.value(self._CONVERT_ROMAJI, False, type=bool)
 
         if lyrics and os.path.isfile(lyrics):
             self.lyrics_path.setText(lyrics)
