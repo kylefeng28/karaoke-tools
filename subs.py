@@ -90,7 +90,7 @@ def read_ass_file(input_file) -> list[Line]:
     return lines
 
 
-def format_k_syllable(s: int, text: str) -> str:
+def format_k_syllable(s: float, text: str) -> str:
     # Return : {\\kN}text  where N is duration in centiseconds.
     return '{\\k%d}%s' % (round(s * 100), text)
 
