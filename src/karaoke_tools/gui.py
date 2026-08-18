@@ -10,9 +10,9 @@ Controls:
   S      — save .ass file
 """
 
+import signal
 import sys
 from operator import attrgetter
-import signal
 
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QKeyEvent
@@ -213,10 +213,12 @@ class MainWindow(QMainWindow):
         self.lbl_progress.setFont(QFont("monospace", 11))
         layout.addWidget(self.lbl_progress)
 
-        # status bar
+        # status bar: controls and messages
         self.status = QStatusBar()
+        self.status_label = QLabel()
+        self.status.addWidget(self.status_label)
         self.setStatusBar(self.status)
-        self.status.showMessage(CONTROLS_DISPLAY)
+        self.show_status('')
 
 
         # timer for polling mpv
@@ -225,6 +227,11 @@ class MainWindow(QMainWindow):
         self._timer.start(100)
 
         self._refresh()
+
+
+    def show_status(self, text: str):
+        self.status_label.setText(text + "\n" + CONTROLS_DISPLAY)
+
 
     def _tick(self):
         if self.mpv:
@@ -299,20 +306,20 @@ class MainWindow(QMainWindow):
             elif key == Qt.Key.Key_BracketRight:
                 self.mpv.faster()
                 self.lbl_speed.setText(_fmt_speed(self.mpv.speed))
-                self.status.showMessage("speed + 0.5")
+                self.show_status("speed + 0.5")
                 self._refresh()
             elif key == Qt.Key.Key_BracketLeft:
                 self.mpv.slower()
                 self.lbl_speed.setText(_fmt_speed(self.mpv.speed))
-                self.status.showMessage("speed - 0.5")
+                self.show_status("speed - 0.5")
                 self._refresh()
             # ; / '  — seek -3s / +3s
             elif key == Qt.Key.Key_Semicolon:
                 self.mpv.seek_rel(-3.0)
-                self.status.showMessage("⟵ -3s")
+                self.show_status("⟵ -3s")
             elif key == Qt.Key.Key_Apostrophe:
                 self.mpv.seek_rel(+3.0)
-                self.status.showMessage("⟶ +3s")
+                self.show_status("⟶ +3s")
 
             ###############################################################
             ### Syllable timing
@@ -322,11 +329,11 @@ class MainWindow(QMainWindow):
                 self.last_t = self.mpv.get_time()
                 if self.syl_start is None:
                     self._start_syl()
-                    self.status.showMessage(f"Started: {self.lines[self.cur_line].get_syllable(self.cur_tok).preview()!r}")
+                    self.show_status(f"Started: {self.lines[self.cur_line].get_syllable(self.cur_tok).preview()!r}")
                 else:
                     tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
                     self._end_syl(advance=True)
-                    self.status.showMessage(f"✓ {tok.preview()!r}  {tok.start:.2f}–{tok.end:.2f}s")
+                    self.show_status(f"✓ {tok.preview()!r}  {tok.start:.2f}–{tok.end:.2f}s")
                 self._refresh()
 
             # N      — end current syllable, leave a gap (don't start next syllable)
@@ -336,7 +343,7 @@ class MainWindow(QMainWindow):
                     tok = self.lines[self.cur_line].get_syllable(self.cur_tok)
                     self._end_syl(advance=False)
                     self.token_next() or self.line_next()
-                    self.status.showMessage(f"✓ {tok.preview()!r} ended, gap …")
+                    self.show_status(f"✓ {tok.preview()!r} ended, gap …")
                 self._refresh()
 
             # /      — redo current line
@@ -345,20 +352,20 @@ class MainWindow(QMainWindow):
                 if self.cur_tok > 0: self.cur_tok = 0
                 elif self.cur_line > 0: self.cur_line -= 1; self.cur_tok = 0
                 self.mpv.seek(self.lines[self.cur_line].start)
-                self.status.showMessage(f"↩ Line {self.cur_line+1}")
+                self.show_status(f"↩ Line {self.cur_line+1}")
                 self._refresh()
 
             # R      — reset current line
             elif key == Qt.Key.Key_R:
                 for tk in self.lines[self.cur_line].get_syllables(): tk.timed=False; tk.start=tk.end=0.0
                 self.cur_tok = 0; self.syl_start = None
-                self.status.showMessage("Line reset.")
+                self.show_status("Line reset.")
                 self._refresh()
 
             elif key == Qt.Key.Key_S:
                 self.pause()
                 export_ass(self.lines, self.settings.out_path, template_file=self.settings.template_file)
-                self.status.showMessage(f"✓ Saved → {self.settings.out_path}")
+                self.show_status(f"✓ Saved → {self.settings.out_path}")
                 self._refresh()
 
         if key == Qt.Key.Key_Right:
@@ -439,7 +446,6 @@ def cleanup(*args):
             mpv.close()
         except Exception:
             print('Error stopping mpv')
-            pass
     print('Exiting...')
     sys.exit(0)
 
