@@ -12,6 +12,7 @@ Controls:
 
 import os
 import sys
+from dataclasses import dataclass
 
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                              QHBoxLayout, QLabel, QStatusBar, QDialog,
@@ -45,6 +46,9 @@ CUR_TOK_FG = 'white'
 TOK_TIMED_ACTIVE_WORD_FG = '#34694e'
 TOK_TIMED_FG = '#4caf50'
 TOK_DEFAULT_FG = '#ccc'
+
+
+DEFAULT_TEMPLATE_FILE = './templates/karaoke_mugen_template.ass'
 
 
 class SyllableWidget(QWidget):
@@ -132,12 +136,27 @@ class SyllableWidget(QWidget):
         return (html, style)
 
 
+@dataclass
+class ExportSettings:
+    out_path: str
+    template_file: str
+
+
 class MainWindow(QMainWindow):
-    def __init__(self, lines: list[Line], mpv: MpvIPC, out_path: str):
+    lines: list[Line]
+    mpv: MpvIPC
+    export_settings: ExportSettings
+    cur_line: int
+    cur_tok: int
+    syl_start: float | None
+    playing: bool
+    last_t: float
+
+    def __init__(self, lines: list[Line], mpv: MpvIPC | None, export_settings: ExportSettings):
         super().__init__()
         self.lines = lines
         self.mpv = mpv
-        self.out_path = out_path
+        self.export_settings = export_settings
         self.cur_line = 0
         self.cur_tok = 0
         self.syl_start: float | None = None
@@ -331,8 +350,8 @@ class MainWindow(QMainWindow):
 
             elif key == Qt.Key.Key_S:
                 self.pause()
-                export_ass(self.lines, self.out_path)
-                self.status.showMessage(f"✓ Saved → {self.out_path}")
+                export_ass(self.lines, self.export_settings.out_path, template_file=self.export_settings.template_file)
+                self.status.showMessage(f"✓ Saved → {self.export_settings.out_path}")
                 self._refresh()
 
         if key == Qt.Key.Key_Right:
@@ -558,6 +577,7 @@ def main():
         tokenize = dlg.result['tokenize']
         out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
         convert_romaji = dlg.result['convert_romaji']
+        template_file = DEFAULT_TEMPLATE_FILE
 
     else:
         import argparse
@@ -566,9 +586,11 @@ def main():
         parser.add_argument('lyrics', help='Lyrics file (.txt)')
         parser.add_argument('media', nargs='?', help='Audio/video file for mpv')
         parser.add_argument('--tokenize', choices=['none', 'jp', 'mecab', 'kakasi', 'pykakasi', 'romaji'], default=None,
-                            help='(None)=no special parsing. split by CJK characters and Latin alphabet words, jp=use MeCab to generate furigana/readings for Japanese text')
+                            help='none=no special parsing. split by CJK characters and Latin alphabet words; jp/mecab/kakasi=use MeCab/kakasi to generate furigana/readings for Japanese text')
         parser.add_argument('--convert-romaji', '-r', action='store_true',
                             help='convert romaji (best if used with --tokenize mecab')
+        parser.add_argument('--template', '-t', default=DEFAULT_TEMPLATE_FILE,
+                            help='template file for generate .ass file (default: %(default)s)') # )
         parser.add_argument('--out', '-o', default=None,
                             help='path to export generated .ass file')
 
@@ -579,6 +601,7 @@ def main():
         tokenize = args.tokenize
         out_path = args.out
         convert_romaji = args.convert_romaji
+        template_file = args.template
 
         if not out_path:
             out_path = os.path.splitext(lyrics_file)[0] + '_timed.ass'
@@ -606,7 +629,7 @@ def main():
 
     mpv = MpvIPC(media_file) if media_file else None
 
-    win = MainWindow(lines, mpv, out_path)
+    win = MainWindow(lines, mpv, ExportSettings(out_path, template_file))
     win.show()
     sys.exit(app.exec())
 

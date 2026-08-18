@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 from cjk_utils import join_tokens
 
+
 class Token:
     def get_type():
         pass
@@ -9,9 +10,10 @@ class Token:
     def get_syllables():
         pass
 
+
 @dataclass
 class TimedSyllable(Token):
-    """
+    r"""
     Represents a syllable marked with k-timed tags (\k or \kf).
     Could be a standalone syllable or part of a TimedWord
     """

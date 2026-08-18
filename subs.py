@@ -5,26 +5,9 @@ from pysubs2 import SSAFile, SSAEvent, make_time
 
 from cjk_utils import convert_to_hiragana
 from timing import TimedWord, TimedSyllable, Line
-from utils import _fmt_time, _fmt_speed
 
 # Matches both \k and \kf timing tags (with optional space before the number); group 1 = timing, group 2 = syllable text
 K_TOKEN_RE = re.compile(r'\{\\kf? ?(\d+)\}([^{]*)')  # } to make vim indent formatting happy from unmatched bracket in regex
-
-_ASS_TEMPLATE = """\
-[Script Info]
-ScriptType: v4.00+
-WrapStyle: 0
-ScaledBorderAndShadow: yes
-PlayResX: 1920
-PlayResY: 1080
-
-[V4+ Styles]
-Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Default,Arial,80,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,3,0,2,10,10,10,1
-
-[Events]
-Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-"""
 
 
 def parse_k_timing(line: str) -> list[TimedWord]:
@@ -116,12 +99,14 @@ def format_line(line: Line) -> str:
     return text
 
 
-def to_ssa_file(lines: list[Line]) -> SSAFile:
-    subs = pysubs2.SSAFile.from_string(_ASS_TEMPLATE)
+def to_ssa_file(lines: list[Line], template_file: str) -> SSAFile:
+    subs = SSAFile.load(template_file)
+    style = next(iter(subs.styles.keys()))
+
     for line in lines:
         text = format_line(line)
         event = SSAEvent(start=make_time(s=line.get_start() or 0), end=make_time(s=line.get_end() or 0),
-                         style="Default",
+                         style=style,
                          effect="karaoke",
                          text=text)
         subs.append(event)
@@ -129,7 +114,7 @@ def to_ssa_file(lines: list[Line]) -> SSAFile:
     return subs
 
 
-def export_ass(lines: list[Line], out_path: str) -> str:
-    subs = to_ssa_file(lines)
+def export_ass(lines: list[Line], out_path: str, template_file: str) -> str:
+    subs = to_ssa_file(lines, template_file)
     subs.save(out_path)
     return out_path
