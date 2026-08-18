@@ -17,9 +17,12 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-    "patch-package-py>=0.2.1",
     "pyinstaller>=6.21.0",
     "pytest>=9.1.1",
 ]
+
+[tool.uv]
+package = true
+
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = ["src"]

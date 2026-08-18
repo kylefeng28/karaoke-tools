@@ -1,7 +1,7 @@
 import pytest
 
-from subs import format_k_syllable, format_line, to_ssa_file
-from timing import TimedWord, TimedSyllable, Line
+from karaoke_tools.subs import format_k_syllable, format_line, to_ssa_file
+from karaoke_tools.timing import TimedWord, TimedSyllable, Line
 
 
 def test_format_k_syllable():

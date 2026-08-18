@@ -1,5 +1,4 @@
 import re
-import pytest
 
 MORA_PATTERN = r"""
 (?:

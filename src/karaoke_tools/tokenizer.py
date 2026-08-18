@@ -1,6 +1,6 @@
-from timing import TimedSyllable, TimedWord, Line
-from cjk_utils import split_tokens, split_morae, is_cjk, convert_to_romaji
-from romaji_utils import split_romaji_morae
+from .cjk_utils import convert_to_romaji, is_cjk, split_morae, split_tokens
+from .romaji_utils import split_romaji_morae
+from .timing import Line, TimedSyllable, TimedWord
 
 
 def generic_tokenizer(text):

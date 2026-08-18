@@ -1,4 +1,4 @@
-from cjk_utils import is_kanji, is_kana, is_hangul, is_cjk, split_tokens, join_tokens
+from karaoke_tools.cjk_utils import is_kanji, is_kana, is_hangul, is_cjk, split_tokens, join_tokens
 
 
 def assert_token(s: str, kanji: bool, kana: bool, hangul: bool, cjk: bool):

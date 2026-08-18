@@ -87,7 +87,7 @@ wheels = [
 [[package]]
 name = "karaoke-tools"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
 dependencies = [
     { name = "fugashi", extra = ["unidic-lite"] },
     { name = "ipadic" },
@@ -101,7 +101,6 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "patch-package-py" },
     { name = "pyinstaller" },
     { name = "pytest" },
 ]
@@ -120,7 +119,6 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "patch-package-py", specifier = ">=0.2.1" },
     { name = "pyinstaller", specifier = ">=6.21.0" },
     { name = "pytest", specifier = ">=9.1.1" },
 ]
@@ -184,15 +182,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/d7/f1/e7a6dd94a8d4a5626c03e4e99c87f241ba9e350cd9e6d75123f992427270/packaging-26.2.tar.gz", hash = "sha256:ff452ff5a3e828ce110190feff1178bb1f2ea2281fa2075aadb987c2fb221661", size = 228134, upload-time = "2026-04-24T20:15:23.917Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/df/b2/87e62e8c3e2f4b32e5fe99e0b86d576da1312593b39f47d8ceef365e95ed/packaging-26.2-py3-none-any.whl", hash = "sha256:5fc45236b9446107ff2415ce77c807cee2862cb6fac22b8a73826d0693b0980e", size = 100195, upload-time = "2026-04-24T20:15:22.081Z" },
-]
-
-[[package]]
-name = "patch-package-py"
-version = "0.2.1"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ce/6c/1a15f563b8506b5fe4edbcd70836d4c481704518aeb5bc5c79602656083e/patch_package_py-0.2.1.tar.gz", hash = "sha256:a5addd8c4c897bf7795496f3148d4470f84a4abbebdcab06cea2213a4303de67", size = 6576, upload-time = "2026-05-31T14:30:53.394Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/6c/8cd23d431ee1a3ccbfa2ac9ced565c9df1b91fe51119b1b008e6588131ed/patch_package_py-0.2.1-py3-none-any.whl", hash = "sha256:135054c5eb112377c67adcbd7e4502007c24a94d2cd98b5a6fa119fe60ae693e", size = 7733, upload-time = "2026-05-31T14:30:52.216Z" },
 ]
 
 [[package]]

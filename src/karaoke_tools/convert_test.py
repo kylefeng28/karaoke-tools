@@ -1,8 +1,8 @@
-from nlp import FugashiParser, PykakasiParser
+from .nlp import FugashiParser, PykakasiParser
 import sys
 
-from subs import read_ass_file, convert_hiragana
-from merge import merge_files
+from .subs import read_ass_file, convert_hiragana
+from .merge import merge_files
 
 
 # parser = PykakasiParser()
@@ -40,6 +40,7 @@ def main():
             read_txt_file(input_file)
 
     else:
+        import readline  # noqa: F401
         # REPL mode
         print("Enter Japanese text with kanji:")
         print("漢字を入力して：")

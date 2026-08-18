@@ -1,10 +1,10 @@
 import re
 
 import pysubs2
-from pysubs2 import SSAFile, SSAEvent, make_time
+from pysubs2 import SSAEvent, SSAFile, make_time
 
-from cjk_utils import convert_to_hiragana
-from timing import TimedWord, TimedSyllable, Line
+from .cjk_utils import convert_to_hiragana
+from .timing import Line, TimedSyllable, TimedWord
 
 # Matches both \k and \kf timing tags (with optional space before the number); group 1 = timing, group 2 = syllable text
 K_TOKEN_RE = re.compile(r'\{\\kf? ?(\d+)\}([^{]*)')  # } to make vim indent formatting happy from unmatched bracket in regex

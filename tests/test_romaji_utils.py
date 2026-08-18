@@ -1,4 +1,4 @@
-from romaji_utils import is_potential_romaji
+from karaoke_tools.romaji_utils import is_potential_romaji
 
 # ---------------------------------------------------------------------------
 # Helpers

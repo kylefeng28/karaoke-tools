@@ -1,8 +1,9 @@
-import pykakasi
 import fugashi
 import ipadic
 import jaconv
-from cjk_utils import is_kanji, split_okurigana, JapaneseToken
+import pykakasi
+
+from .cjk_utils import JapaneseToken, is_kanji, split_okurigana
 
 
 # Pykakasi is simpler and faster, based on dictionary lookups: https://codeberg.org/miurahr/pykakasi

@@ -27,10 +27,9 @@ import jaconv
 import pysubs2
 from dataclasses import dataclass
 
-from timing import TimedSyllable, TimedWord
-from subs import parse_k_timing, convert_hiragana
-from nlp import tagger
-from cjk_utils import is_kanji
+from .timing import TimedSyllable, TimedWord
+from .subs import parse_k_timing, convert_hiragana
+from .nlp import tagger
 
 
 # ── formatting ────────────────────────────────────────────────────────────────

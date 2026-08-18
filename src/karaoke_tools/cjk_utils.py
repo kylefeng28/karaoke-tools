@@ -1,7 +1,7 @@
 import unicodedata
-import jaconv
-
 from dataclasses import dataclass
+
+import jaconv
 
 
 @dataclass

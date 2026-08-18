@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Literal
 
-from cjk_utils import join_tokens
+from .cjk_utils import join_tokens
 
 
 class Token:
