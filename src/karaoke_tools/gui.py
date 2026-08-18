@@ -552,7 +552,7 @@ def launch_main_window(settings):
         tokenizer = japanese_tokenizer(PykakasiParser(), convert_romaji)
     elif tokenize == 'romaji':
         print('Tokenizing romaji')
-        tokenizer = romaji_tokenizer
+        tokenizer = romaji_tokenizer()
     else:
         print('Using generic tokenizer')
         tokenizer = generic_tokenizer
