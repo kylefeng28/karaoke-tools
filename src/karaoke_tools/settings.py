@@ -16,9 +16,9 @@ class Settings:
         if not self.lyrics_file:
             raise ValueError('lyrics_file cannot be null')
 
-        if not self.out_path:
-            self.out_path = os.path.splitext(self.lyrics_file)[0] + '_timed.ass'
-
         if not self.template_file:
             self.template_file = DEFAULT_TEMPLATE_FILE
 
+    @property
+    def default_out_path(self):
+        return os.path.splitext(self.lyrics_file)[0] + '_timed.ass'

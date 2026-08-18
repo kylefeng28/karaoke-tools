@@ -10,6 +10,7 @@ Controls:
   S      — save .ass file
 """
 
+from pathlib import Path
 import signal
 import sys
 from operator import attrgetter
@@ -19,6 +20,7 @@ from PyQt6.QtGui import QFont, QKeyEvent
 from PyQt6.QtWidgets import (
     QApplication,
     QDialog,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QMainWindow,
@@ -364,8 +366,10 @@ class MainWindow(QMainWindow):
 
             elif key == Qt.Key.Key_S:
                 self.pause()
-                export_ass(self.lines, self.settings.out_path, template_file=self.settings.template_file)
-                self.show_status(f"✓ Saved → {self.settings.out_path}")
+                out_path = show_export_dialog(self, self.settings)
+                if out_path:
+                    out_path = export_ass(self.lines, out_path, template_file=self.settings.template_file)
+                    self.show_status(f"✓ Saved → {out_path}")
                 self._refresh()
 
         if key == Qt.Key.Key_Right:
@@ -531,6 +535,17 @@ def main():
         print('caught c-c')
         print(e)
 
+def show_export_dialog(parent, settings: Settings):
+    path, _ = QFileDialog.getSaveFileName(
+        parent, 'Select output file', settings.default_out_path,
+        'Subtitle files (*.ass)')
+
+    if not path:
+        return None
+
+    path = Path(path)
+    if path.suffix != 'ass':
+        return path.with_suffix(path.suffix + '.ass')
 
 if __name__ == '__main__':
     main()
