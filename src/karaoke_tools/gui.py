@@ -36,9 +36,11 @@ from .settings import DEFAULT_TEMPLATE_FILE, Settings
 from .subs import export_ass, read_ass_file
 from .timing import Line, TimedSyllable, TimedWord
 from .tokenizer import (
+    chinese_tokenizer,
     generic_tokenizer,
     japanese_tokenizer,
     romaji_tokenizer,
+    taigi_tokenizer,
     tokenize_lyrics,
 )
 from .utils import _fmt_speed, _fmt_time
@@ -136,11 +138,10 @@ class SyllableWidget(QWidget):
             syl_style = self._syl_style(syl, syl_start_idx + i, cur_tok, timing_active, word_active)
             spans.append(f'<span style="{syl_style}">{syl.preview()}</span>')
 
-        syls_preview = [s.preview() for s in tok.get_syllables()]
-        if tok.preview() != ''.join(syls_preview):
-            display = f'{tok.preview()} [' + ''.join(spans) + ']'
+        if tok.preview() != tok.preview_syllables():
+            display = f'{tok.preview()} [' + tok.syl_joiner.join(spans) + ']'
         else:
-            display = ''.join(spans)
+            display = tok.syl_joiner.join(spans)
 
 
         html = '<div>' + display + '</div>'
@@ -564,7 +565,7 @@ def main():
         parser = argparse.ArgumentParser(description='Karaoke syllable timer')
         parser.add_argument('lyrics', help='Lyrics file (.txt) or subtitles file (.ass)')
         parser.add_argument('media', nargs='?', help='Audio/video file for mpv')
-        parser.add_argument('--tokenize', choices=['none', 'jp', 'mecab', 'kakasi', 'pykakasi', 'romaji'], default=None,
+        parser.add_argument('--tokenize', choices=['none', 'jp', 'mecab', 'kakasi', 'pykakasi', 'romaji', 'chinese_pinyin', 'taigi_tailo'], default=None,
                             help='none=no special parsing. split by CJK characters and Latin alphabet words; jp/mecab/kakasi=use MeCab/kakasi to generate furigana/readings for Japanese text')
         parser.add_argument('--convert-romaji', '-r', action='store_true',
                             help='convert romaji (best if used with --tokenize mecab')
@@ -616,6 +617,12 @@ def launch_main_window(settings):
         elif tokenize == 'romaji':
             print('Tokenizing romaji')
             tokenizer = romaji_tokenizer()
+        elif tokenize == 'chinese_pinyin':
+            print('Tokenizing Chinese')
+            tokenizer = chinese_tokenizer()
+        elif tokenize == 'taigi_tailo':
+            print('Tokenizing Taiwanese 台語')
+            tokenizer = taigi_tokenizer()
         else:
             print('Using generic tokenizer')
             tokenizer = generic_tokenizer

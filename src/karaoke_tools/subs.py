@@ -80,24 +80,26 @@ def format_k_syllable(s: float, text: str) -> str:
 
 
 def format_line(line: Line) -> str:
-    text, last = '', line.get_start()
+    text, last = [], line.get_start()
     for i, tok in enumerate(line.tokens):
+        cur_text = []
         for syl in tok.get_syllables():
             if syl.timed:
                 gap = syl.start - last
                 extra = 0.0
                 if gap > 0.005:
-                    text += format_k_syllable(s=gap, text='')
-                text += format_k_syllable(s=syl.end - syl.start + extra, text=syl.preview())
+                    # TODO: handle gap if there are non-empty syllable joiners
+                    # TODO: this usually shouldn't be a problem as gaps are between top-level TimedWord/TimedSyllable tokens
+                    # and not in between the individual TimedSyllables of a word
+                    cur_text.append(format_k_syllable(s=gap, text=''))
+                cur_text.append(format_k_syllable(s=syl.end - syl.start + extra, text=syl.preview()))
                 last = syl.end
             else:
-                text += syl.preview()
+                cur_text.append(syl.preview())
 
-        # Add space between words
-        if tok.get_type() == 'word' and i < len(line.tokens) - 1:
-            text += ' '
+        text.append(tok.syl_joiner.join(cur_text))
 
-    return text
+    return ' '.join(text)
 
 
 def to_ssa_file(lines: list[Line], template_file: str) -> SSAFile:

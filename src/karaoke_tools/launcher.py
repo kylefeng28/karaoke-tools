@@ -187,6 +187,8 @@ class LauncherDialog(QDialog):
         self.tokenize_radio.add_option(1, "MeCab (Japanese, morphological analyzer)", "mecab")
         self.tokenize_radio.add_option(2, "Kakasi (Japanese, lightweight)", "kakasi")
         self.tokenize_radio.add_option(3, "Japanese romaji", "romaji")
+        self.tokenize_radio.add_option(4, "Chinese → pinyin", "chinese_pinyin")
+        self.tokenize_radio.add_option(5, "Taiwanese Hokkien (台語) → Tâi-Lô", "taigi_tailo")
 
         self.settings.add_config(RadioConfig(_TOKENIZER, self.tokenize_radio.btn_group))
 

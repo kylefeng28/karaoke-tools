@@ -81,6 +81,34 @@ def romaji_tokenizer():
     return tokenizer
 
 
+def chinese_tokenizer():
+    from pypinyin import pinyin
+    def tokenizer(text: str) -> list[TimedWord]:
+        tokens = []
+        for word in pinyin(text):
+            word_str = '-'.join(word)
+            syllables = [make_syllable(syllable) for syllable in word]
+            tokens.append(TimedWord(text=word_str, syllables=syllables, syl_joiner='-'))
+
+        return tokens
+
+    return tokenizer
+
+
+def taigi_tokenizer():
+    import taibun
+    converter = taibun.Converter()
+    def tokenizer(text: str) -> list[TimedWord]:
+        tokens = []
+        for word in converter.get(text).split():
+            syllables = [make_syllable(syllable) for syllable in word.split('-')]
+            tokens.append(TimedWord(text=word, syllables=syllables, syl_joiner='-'))
+
+        return tokens
+
+    return tokenizer
+
+
 def tokenize_lyrics(raw_lines: list[str], tokenizer) -> list[Line]:
     lines = []
     i = 0
