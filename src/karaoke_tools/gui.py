@@ -44,7 +44,7 @@ from .tokenizer import (
 from .utils import _fmt_speed, _fmt_time
 
 TITLE = "Karaoke Syllable Timer"
-CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save  ESC=main menu"
+CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save  W=playback  ESC=main menu"
 
 
 # Styles
@@ -167,6 +167,7 @@ class MainWindow(QMainWindow):
         self.syl_start: float | None = None
         self.playing = False
         self.last_t = 0.0
+        self.playback = False
 
         self.setWindowTitle(TITLE)
         self.setMinimumSize(700, 400)
@@ -234,26 +235,26 @@ class MainWindow(QMainWindow):
     def show_status(self, text: str):
         self.status_label.setText(text + "\n" + CONTROLS_DISPLAY)
 
-
     def _tick(self):
         if self.mpv:
             try:
                 self.last_t = self.mpv.get_time()
                 self.lbl_time.setText(_fmt_time(self.last_t))
-                if self.playing:
-                    self._auto_advance()
+                if self.playback:
+                    self._playback_advance()
             except BrokenPipeError:
                 print('mpv has stopped unexpectedly')
                 self.mpv = None
 
-    def _auto_advance(self):
+    def _playback_advance(self):
         t = self.last_t
-        idx = next((i for i, ln in enumerate(self.lines) if ln.start <= t < ln.end), -1)
-        if idx != -1 and idx != self.cur_line:
-            if self.syl_start is not None:
-                self._end_syl(advance=False)
-            self.cur_line = idx; self.cur_tok = 0
-            self._refresh()
+        tok = self.get_cur_tok()
+
+        if tok.start and tok.end and tok.start <= t <= tok.end:
+            pass
+        elif tok.end and t > tok.end:
+            self.token_next() or self.line_next()
+        self._refresh()
 
     def _start_syl(self):
         tok = self.get_cur_tok()
@@ -291,6 +292,33 @@ class MainWindow(QMainWindow):
             f"Syl {self.cur_tok+1}/{len(ln.get_syllables())}  ({done} timed)")
 
     def keyPressEvent(self, ev: QKeyEvent):
+        if self.playback:
+            self.keyPressEventPlayback(ev)
+        else:
+            self.keyPressEventTiming(ev)
+
+    def keyPressEventPlayback(self, ev: QKeyEvent):
+        key = ev.key()
+
+        if key == Qt.Key.Key_Escape:
+            self.show_new_launcher()
+        elif key == Qt.Key.Key_W:
+            self.stop_playback()
+        elif key == Qt.Key.Key_Left:
+            self.start_playback()
+            self._refresh()
+        elif key == Qt.Key.Key_Down:
+            self.line_next()
+            self.start_playback()
+            self._refresh()
+        elif key == Qt.Key.Key_Up:
+            self.line_prev()
+            self.start_playback()
+            self._refresh()
+        else:
+            super().keyPressEvent(ev)
+
+    def keyPressEventTiming(self, ev: QKeyEvent):
         key = ev.key()
 
         if self.mpv:
@@ -364,6 +392,7 @@ class MainWindow(QMainWindow):
                 self.show_status("Line reset.")
                 self._refresh()
 
+            # S      — save .ass file
             elif key == Qt.Key.Key_S:
                 self.pause()
                 out_path = self.show_export_dialog(self.settings)
@@ -390,8 +419,23 @@ class MainWindow(QMainWindow):
             self._refresh()
         elif key == Qt.Key.Key_Escape:
             self.show_new_launcher()
+        elif key == Qt.Key.Key_W:
+            self.start_playback()
         else:
             super().keyPressEvent(ev)
+
+    def start_playback(self):
+        if self.mpv:
+            self.play()
+            self.cur_tok = 0
+            if self.get_cur_line().get_start():
+                self.show_status("starting playback")
+                self.mpv.seek(self.get_cur_line().get_start())
+                self.playback = True
+
+    def stop_playback(self):
+        self.show_status("stopping playback")
+        self.playback = False
 
     def play(self):
         self.mpv.play()
