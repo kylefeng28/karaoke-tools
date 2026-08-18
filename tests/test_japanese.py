@@ -54,7 +54,21 @@ def test_japanese():
         expected_romaji = ['hitobito', 'tokidoki', 'samazama']
     )
 
-    # assert_match(
-    #     text = '憚るもの皆',
-    #     expected = []
-    # )
+def test_japanese_unknown_reading():
+    assert_match(
+        text = '憚',
+        expected = [
+            JapaneseToken(surface='憚', reading='?', furigana_pairs=[('憚', '?')]),
+        ],
+        expected_romaji = ['?']
+    )
+
+    assert_match(
+        text = '憚るもの皆',
+        expected = [
+            JapaneseToken(surface='憚る', reading='?る', furigana_pairs=[('憚', '?'), ('る',)]),
+            JapaneseToken(surface='もの', reading=None, furigana_pairs=('もの',)),
+            JapaneseToken(surface='皆', reading='みな', furigana_pairs=[('皆', 'みな')])
+        ],
+        expected_romaji = ['?ru', 'mono', 'mina']
+    )

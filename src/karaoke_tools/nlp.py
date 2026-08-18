@@ -6,6 +6,10 @@ import pykakasi
 from .cjk_utils import JapaneseToken, is_kanji, split_okurigana
 
 
+UNKNOWN = '?'
+UNKNOWN_UNICODE = '�' # U+FFFD
+
+
 # Pykakasi is simpler and faster, based on dictionary lookups: https://codeberg.org/miurahr/pykakasi
 class PykakasiParser:
     def convert(self, text):
@@ -52,12 +56,12 @@ class FugashiParser:
                 continue
 
             # Attach endings like た, ない, たい, て to previous token
-            if (word.feature.pos1 == '助動詞') or (word.feature.pos1 == '助詞' and word.feature.pos2 == '接続助詞'):
+            if (word.feature.pos1 == '助動詞') or (word.feature.pos1 == '助詞' and word.feature.pos2 == '接続助詞') and result:
                 prev = result.pop()
                 surface = prev.surface + surface
-                kana = (prev.reading or '') + word.feature.kana
+                kana = prev.reading + word.feature.kana
             else:
-                kana = word.feature.kana
+                kana = word.feature.kana or UNKNOWN
 
             if surface.isspace():
                 continue
@@ -65,7 +69,7 @@ class FugashiParser:
                 hiragana = jaconv.kata2hira(kana)
                 pairs = list(split_okurigana(surface, hiragana))
             else:
-                hiragana = None
+                hiragana = jaconv.kata2hira(kana)
                 pairs = (surface,)
 
             token = JapaneseToken(surface=surface, reading=hiragana, furigana_pairs=pairs)
