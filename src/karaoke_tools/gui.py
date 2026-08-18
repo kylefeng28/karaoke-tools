@@ -44,7 +44,7 @@ from .tokenizer import (
 from .utils import _fmt_speed, _fmt_time
 
 TITLE = "Karaoke Syllable Timer"
-CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save"
+CONTROLS_DISPLAY = "SPACE=end+next  N=end(gap)  P=play/pause  [/]=speed  ;/'=seek  R=reset  S=save  ESC=main menu"
 
 
 # Styles
@@ -366,7 +366,7 @@ class MainWindow(QMainWindow):
 
             elif key == Qt.Key.Key_S:
                 self.pause()
-                out_path = show_export_dialog(self, self.settings)
+                out_path = self.show_export_dialog(self.settings)
                 if out_path:
                     out_path = export_ass(self.lines, out_path, template_file=self.settings.template_file)
                     self.show_status(f"✓ Saved → {out_path}")
@@ -388,7 +388,8 @@ class MainWindow(QMainWindow):
             self.syl_start = None
             self.line_prev()
             self._refresh()
-
+        elif key == Qt.Key.Key_Escape:
+            self.show_new_launcher()
         else:
             super().keyPressEvent(ev)
 
@@ -431,6 +432,23 @@ class MainWindow(QMainWindow):
             self.mpv.close()
         super().closeEvent(ev)
 
+    def show_export_dialog(self, settings: Settings):
+        path, _ = QFileDialog.getSaveFileName(
+            self, 'Select output file', settings.default_out_path,
+            'Subtitle files (*.ass)')
+
+        if not path:
+            return None
+
+        path = Path(path)
+        if path.suffix != 'ass':
+            return path.with_suffix(path.suffix + '.ass')
+
+    def show_new_launcher(self):
+        new_settings = show_launcher_dialog()
+        if new_settings:
+            launch_main_window(new_settings)
+
 
 def load_raw_lyrics(path: str) -> list[str]:
     line = []
@@ -442,8 +460,14 @@ def load_raw_lyrics(path: str) -> list[str]:
     return line
 
 
+# Globals
+app = None
 mpv = None
+window = None
+
 def cleanup(*args):
+    global mpv
+
     if mpv:
         try:
             print('Stopping mpv...')
@@ -455,7 +479,7 @@ def cleanup(*args):
 
 
 def main():
-    global mpv
+    global app
 
     app = QApplication(sys.argv)
 
@@ -472,11 +496,9 @@ def main():
 
     # If no CLI arguments provided, show the launcher dialog
     if len(sys.argv) <= 1:
-        dlg = LauncherDialog()
-        if dlg.exec() != QDialog.DialogCode.Accepted or dlg.result is None:
+        settings = show_launcher_dialog()
+        if not settings:
             sys.exit(0)
-
-        settings = dlg.result
 
     else:
         import argparse
@@ -503,6 +525,22 @@ def main():
             convert_romaji=args.convert_romaji,
         )
 
+    launch_main_window(settings)
+
+
+def show_launcher_dialog():
+    dlg = LauncherDialog()
+    if dlg.exec() != QDialog.DialogCode.Accepted or dlg.result is None:
+        return None
+    else:
+        return dlg.result
+
+
+def launch_main_window(settings):
+    global app
+    global mpv
+    global window
+
     lyrics_file, media_file, tokenize, convert_romaji = attrgetter("lyrics_file", "media_file", "tokenize", "convert_romaji")(settings)
     raw_lines = load_raw_lyrics(lyrics_file)
 
@@ -527,25 +565,19 @@ def main():
 
     mpv = MpvIPC(media_file) if media_file else None
 
-    try:
-        win = MainWindow(lines, mpv, settings)
-        win.show()
+    # If launched from an existing window, we have to close and free the existing one first
+    if window:
+        existing_window = True
+        window.close()
+        window.deleteLater()
+    else:
+        existing_window = False
+
+    window = MainWindow(lines, mpv, settings)
+    window.show()
+
+    if not existing_window:
         sys.exit(app.exec())
-    except KeyboardInterrupt as e:
-        print('caught c-c')
-        print(e)
-
-def show_export_dialog(parent, settings: Settings):
-    path, _ = QFileDialog.getSaveFileName(
-        parent, 'Select output file', settings.default_out_path,
-        'Subtitle files (*.ass)')
-
-    if not path:
-        return None
-
-    path = Path(path)
-    if path.suffix != 'ass':
-        return path.with_suffix(path.suffix + '.ass')
 
 if __name__ == '__main__':
     main()
