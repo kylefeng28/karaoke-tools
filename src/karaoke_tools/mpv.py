@@ -1,10 +1,19 @@
+import os
+import shutil
+
 from python_mpv_jsonipc import MPV
 
 class MpvIPC:
     SPEED_MIN, SPEED_MAX, SPEED_STEP = 0.5, 2.0, 0.25
 
     def __init__(self, media: str):
-        self.mpv = MPV(video='no', pause='yes')
+        mpv_location = 'mpv'
+
+        # On Windows, use mpv.com instead of mpv.exe if exists so that the video player doesn't show
+        if os.name == 'nt':
+            mpv_location = shutil.which('mpv.com')
+
+        self.mpv = MPV(mpv_location=mpv_location, video='no', pause='yes')
         self.mpv.loadfile(media)
         self.speed = 1.0
 
