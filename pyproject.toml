@@ -9,9 +9,11 @@ dependencies = [
     "ipadic>=1.0.0",
     "pykakasi>=2.3.0",
     "pyonfx>=0.11.0",
+    "pypinyin>=0.55.0",
     "pyqt6>=6.11.0",
     "pysubs2>=1.8.1",
     "python-mpv-jsonipc>=1.2.3",
+    "taibun>=1.1.8",
     "unidic-lite>=1.0.8",
 ]
 

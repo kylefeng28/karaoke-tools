@@ -47,11 +47,18 @@ class TimedSyllable(Token):
     def preview(self):
         return self.text
 
+    def preview_syllables(self):
+        return self.text
+
     def get_type(self):
         return 'syllable'
 
     def get_syllables(self):
         return [self]
+
+    @property
+    def syl_joiner(self):
+        return ''
 
 @dataclass
 class TimedWord(Token):
@@ -60,6 +67,7 @@ class TimedWord(Token):
     """
     text: str
     syllables: list[TimedSyllable] = field(default_factory=list)
+    syl_joiner: str = ''  # '' for Japanese and Japanese romaji, but '-' for pinyin
 
     def __post_init__(self):
         for syl_idx, syllable in enumerate(self.syllables):
@@ -68,13 +76,16 @@ class TimedWord(Token):
     def __str__(self):
         if not self.syllables:
             return self.text
-        syls = [s.text for s in self.syllables]
-        if ''.join(syls) == self.text:
+        if self.text == self.syllables_preview():
             return self.text
         return self.text + ' {' + '-'.join(syls) + '}'
 
     def preview(self):
         return self.text
+
+    def preview_syllables(self):
+        syls_preview = [s.preview() for s in self.get_syllables()]
+        return self.syl_joiner.join(syls_preview)
 
     def detailed_str(self):
         syls = [s.text for s in self.syllables]
